@@ -1,5 +1,4 @@
-// src/app/api/login/route.ts
-import { signOut } from "@/app/auth/actions";
+
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
@@ -16,55 +15,9 @@ export async function POST(req: Request) {
 
     const supabase = await createClient();
 
-    // Step 1: Check email verification status
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("email_verified")
-      .eq("email", email)
-      .maybeSingle();
-
-    if (profileError) {
-      return NextResponse.json(
-        { success: false, message: "Failed to fetch user profile" },
-        { status: 500 }
-      );
-    }
-
-    // Step 2: If not verified, delete user
-    if (!profile?.email_verified) {
-      // Fetch user ID from auth.users
-      const { data: userData, error: userFetchError } = await supabase
-        .from("users")
-        .select("id")
-        .eq("email", email)
-        .maybeSingle();
-console.log(userFetchError, userData);
-      if (userFetchError || !userData?.id) {
-        return NextResponse.json(
-          { success: false, message: "Failed to fetch user ID for deletion" },
-          { status: 500 }
-        );
-      }
-
-      // Delete user from auth.users (requires elevated RLS or service role)
-      const { error: deleteUserError } = await supabase.auth.admin.deleteUser(userData.id);
-
-      // Also delete profile row
-      await supabase.from("profiles").delete().eq("email", email);
-
-      // Sign out to clear any session
-      await signOut();
-
-      return NextResponse.json(
-        { success: false, unverified: true, message: "Unverified user deleted", email },
-        { status: 403 }
-      );
-    }
-
-    // Step 3: Proceed with login
+    // Step 1: Proceed with login
     const { data: authData, error: authError } =
       await supabase.auth.signInWithPassword({ email, password });
-
     if (authError) {
       const message = authError.message.includes("Invalid login credentials")
         ? "Invalid email or password"
@@ -75,17 +28,36 @@ console.log(userFetchError, userData);
       return NextResponse.json({ success: false, message }, { status: 401 });
     }
 
-    const user = authData?.user;
-    if (!user) {
+    // Step 2: Check if user exists
+
+    if (!authData?.user) {
       return NextResponse.json(
-        { success: false, message: "No user returned from auth" },
+        { success: false, message: "No user returned from authentication" },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ success: true, message: "Login successful" });
-  } catch (err) {
-    console.error("Login error:", err);
+    // Step 3: check user metadata for email verification
+    if (
+      !authData.user.user_metadata?.email_verified_byOTP &&
+      authData.user.app_metadata?.provider === "email"
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Please verify your email before logging in",
+        },
+        { status: 401 }
+      );
+    }
+
+    // Step 4: Set cookies
+    return NextResponse.json({
+      success: true,
+      message: "Login successful",
+    });
+  } catch (error) {
+    console.error("Login error:", error);
     return NextResponse.json(
       { success: false, message: "Internal server error" },
       { status: 500 }
