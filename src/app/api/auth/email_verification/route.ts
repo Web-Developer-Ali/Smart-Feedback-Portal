@@ -13,41 +13,58 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = createClient();
+    // 2. Initialize Supabase client (single await)
+    const supabase = await createClient();
 
-    // 2. Authenticate and validate user session FIRST
-    const { data: { user }, error: authError } = await (await supabase).auth.getUser();
+    // 3. SECURELY validate user session
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
     
-    if (authError || !user?.email) {
+    if (authError) {
+      console.error("Auth error:", authError);
+      return NextResponse.json(
+        { success: false, message: "Session verification failed" },
+        { status: 401 }
+      );
+    }
+
+    if (!user?.email) {
       return NextResponse.json(
         { success: false, message: "Authentication required" },
         { status: 401 }
       );
     }
 
-    // 3. Verify email ownership (prevent CSRF attacks)
-    if (user.email !== email) {
+    // 4. Verify email ownership
+    if (user.email.toLowerCase() !== email.toLowerCase()) {
       return NextResponse.json(
-        { success: false, message: "Unauthorized email verification attempt" },
+        { success: false, message: "Unauthorized verification attempt" },
         { status: 403 }
       );
     }
 
-    // 4. Fetch OTP data from profile
-    const { data: profile, error: profileError } = await (await supabase)
+    // 5. Fetch OTP data (single await)
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("email_otp, otp_expires_at, email_verified")
       .eq("email", email)
       .maybeSingle();
 
-    if (profileError || !profile) {
+    if (profileError) {
+      console.error("Profile error:", profileError);
+      return NextResponse.json(
+        { success: false, message: "Database error" },
+        { status: 500 }
+      );
+    }
+
+    if (!profile) {
       return NextResponse.json(
         { success: false, message: "User profile not found" },
         { status: 404 }
       );
     }
 
-    // 5. Check if already verified
+    // 6. Check verification status
     if (profile.email_verified) {
       return NextResponse.json(
         { success: false, message: "Email already verified" },
@@ -55,82 +72,80 @@ export async function POST(request: Request) {
       );
     }
 
-    // 6. Validate OTP
-    const { email_otp, otp_expires_at } = profile;
+    // 7. Validate OTP
     const now = new Date();
-
-    if (!email_otp || !otp_expires_at) {
+    if (!profile.email_otp || !profile.otp_expires_at) {
       return NextResponse.json(
         { success: false, message: "No active OTP found" },
         { status: 400 }
       );
     }
 
-    if (email_otp !== otp) {
+    if (profile.email_otp !== otp) {
       return NextResponse.json(
         { success: false, message: "Invalid OTP code" },
         { status: 401 }
       );
     }
 
-    if (new Date(otp_expires_at) < now) {
+    if (new Date(profile.otp_expires_at) < now) {
       return NextResponse.json(
         { success: false, message: "OTP has expired" },
         { status: 410 }
       );
     }
 
-    // 7. Perform atomic updates (profile + auth metadata)
-    const { error: updateError } = await (await supabase)
-      .from("profiles")
-      .update({
+    // 8. Execute atomic verification
+    const updatePromises = [
+      supabase.from("profiles").update({
         email_verified: true,
         email_otp: null,
         otp_expires_at: null,
-        updated_at: new Date().toISOString(),
+        updated_at: now.toISOString(),
+      }).eq("email", email),
+      
+      supabase.auth.updateUser({
+        data: { 
+          email_verified_byOTP: true,
+          verification_timestamp: now.toISOString() 
+        }
       })
-      .eq("email", email);
+    ];
 
-    if (updateError) {
+    const [profileResult, authResult] = await Promise.all(updatePromises);
+
+    // 9. Handle errors
+    if (profileResult.error) {
+      console.error("Profile update error:", profileResult.error);
       return NextResponse.json(
-        { success: false, message: "Failed to update profile" },
+        { success: false, message: "Profile update failed" },
         { status: 500 }
       );
     }
 
-    // 8. Update auth user metadata
-    const { error: metadataError } = await (await supabase).auth.updateUser({
-      data: { 
-        email_verified_byOTP: true,
-        verification_timestamp: new Date().toISOString() 
-      }
-    });
-
-    if (metadataError) {
-      // Rollback profile verification if auth update fails
-      await (await supabase)
-        .from("profiles")
-        .update({
-          email_verified: false,
-          email_otp: email_otp, // Restore original OTP
-          otp_expires_at: otp_expires_at,
-        })
-        .eq("email", email);
+    if (authResult.error) {
+      console.error("Auth update error:", authResult.error);
+      // Attempt rollback
+      await supabase.from("profiles").update({
+        email_verified: false,
+        email_otp: profile.email_otp,
+        otp_expires_at: profile.otp_expires_at
+      }).eq("email", email);
 
       return NextResponse.json(
         { 
           success: false, 
-          message: "Verification completed but session update failed. Please log in again." 
+          message: "Please log in again to complete verification" 
         },
         { status: 500 }
       );
     }
 
-    // 9. Return success response
+    // 10. Success response
     return NextResponse.json({
       success: true,
       message: "Email successfully verified",
-      verified_at: new Date().toISOString()
+      verified_at: now.toISOString()
     });
 
   } catch (error) {
@@ -138,7 +153,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { 
         success: false, 
-        message: "An unexpected error occurred during verification" 
+        message: "An unexpected error occurred" 
       },
       { status: 500 }
     );

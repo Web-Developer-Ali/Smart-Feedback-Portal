@@ -1,93 +1,95 @@
-import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
-import { createServerClient } from "@supabase/ssr"
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { createServerClient } from "@supabase/ssr";
+import { ResponseCookie } from "next/dist/compiled/@edge-runtime/cookies";
 
 export async function middleware(request: NextRequest) {
-  // 1. Skip ALL API routes explicitly
-  if (request.nextUrl.pathname.startsWith('/api')) {
-    return NextResponse.next()
-  }
-
-  // 2. Skip static files and well-known routes
+  // Skip middleware for API routes, static files, and special paths
   if (
-    request.nextUrl.pathname.startsWith('/_next/') ||
-    request.nextUrl.pathname.startsWith('/.well-known/') ||
+    request.nextUrl.pathname.startsWith("/api/") ||
+    request.nextUrl.pathname.startsWith("/_next/") ||
+    request.nextUrl.pathname.startsWith("/.well-known/") ||
     request.nextUrl.pathname.match(/\.(svg|png|jpg|jpeg|gif|webp|ico)$/)
   ) {
-    return NextResponse.next()
+    return NextResponse.next();
   }
 
-  // 3. Initialize Supabase client
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
+
+  // Create Supabase client
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         get(name: string) {
-          return request.cookies.get(name)?.value
+          return request.cookies.get(name)?.value;
         },
-        set(name: string, value: string, options) {
-          request.cookies.set(name, value)
-          response.cookies.set(name, value, options)
+        set(name: string, value: string, options?: Partial<ResponseCookie>) {
+          request.cookies.set(name, value);
+          response.cookies.set(name, value, options);
         },
         remove(name: string) {
-          request.cookies.delete(name)
-          response.cookies.delete(name)
+          request.cookies.delete(name);
+          response.cookies.delete(name);
         },
       },
     }
-  )
+  );
 
-  let response = NextResponse.next()
-  
-  // 4. Get user session
-  const { data: { user } } = await supabase.auth.getUser()
-  const emailVerified = user?.user_metadata?.email_verified_byOTP === true
+  // Get user session
+  const { data: { user } } = await supabase.auth.getUser();
 
-  // 5. Public routes whitelist
-  const publicRoutes = [
-    '/', 
-    '/login', 
-    '/signup',
-    '/otp-verification',
-    '/auth/error' // Add any auth error routes
-  ]
+  // Strict public paths definition (only exact matches)
+  const publicPaths = new Set([
+    "/login",
+    "/signup",
+    "/auth/callback",
+    "/",
+    "/otp-verification"
+  ]);
 
-  // 6. Route protection logic
-  if (!user && !publicRoutes.includes(request.nextUrl.pathname)) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  const isPublicPath = publicPaths.has(request.nextUrl.pathname);
+
+  // 1. Handle unauthenticated users
+  if (!user) {
+    if (!isPublicPath) {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+    return response;
   }
 
-  // 7. Verified user redirection
-  if (user && emailVerified && publicRoutes.includes(request.nextUrl.pathname)) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+  // 2. Determine verification status
+  const isEmailUser = user.app_metadata?.provider === "email";
+  const isVerified = !isEmailUser || user.user_metadata?.email_verified_byOTP === true;
+
+  // 3. Special case: OAuth callback must always complete
+  if (request.nextUrl.pathname === "/auth/callback") {
+    return response;
   }
 
-  // 8. OTP verification enforcement
-  if (
-    user &&
-    !emailVerified &&
-    user?.app_metadata?.provider === "email" &&
-    !request.nextUrl.pathname.startsWith("/otp-verification")
-  ) {
-    const redirectUrl = new URL('/otp-verification', request.url)
-    redirectUrl.searchParams.set('email', user.email || '')
-    return NextResponse.redirect(redirectUrl)
+  // 4. Strict verification enforcement for email users
+  if (isEmailUser && !isVerified && request.nextUrl.pathname !== "/otp-verification") {
+      const redirectUrl = new URL('/otp-verification', request.url);
+      redirectUrl.searchParams.set('email', user.email || '');
+      return NextResponse.redirect(redirectUrl);
   }
 
-  return response
+  // 5. Redirect verified/social users away from auth pages
+  if (isVerified && isPublicPath && !request.nextUrl.pathname.startsWith("/auth/callback")) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
+  return response;
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - api routes (handled separately)
-     * - static files (images, etc.)
-     * - favicon.ico
-     */
-    '/((?!_next/static|_next/image|api|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // Match all paths except:
+    "/((?!api/|_next/static|_next/image|favicon.ico|.well-known/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
-}
+};

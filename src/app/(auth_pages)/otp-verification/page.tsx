@@ -21,6 +21,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
+import Head from "next/head";
 
 export default function OTPVerificationPage() {
   const searchParams = useSearchParams();
@@ -219,6 +220,19 @@ export default function OTPVerificationPage() {
   };
 
   return (
+    <>
+    <Head>
+        <title>Email Verification | Smart Feedback Portal</title>
+        <meta 
+          name="description" 
+          content="Verify your email address to access your Smart Feedback Portal account. Enter the 6-digit OTP sent to your email." 
+        />
+        <meta name="keywords" content="email verification, OTP verification, account verification, Smart Feedback" />
+        <meta property="og:title" content="Email Verification | Smart Feedback Portal" />
+        <meta property="og:description" content="Verify your email address to access your account" />
+        <meta property="og:type" content="website" />
+        <link rel="canonical" href="/otp-verification" />
+      </Head>
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center">
@@ -377,5 +391,6 @@ export default function OTPVerificationPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }
