@@ -34,7 +34,6 @@ export async function GET(request: Request) {
 
     const provider = user.app_metadata?.provider || "email";
     const googleAvatarUrl = user.user_metadata?.avatar_url;
-    let avatarUrl = null;
 
     // Check for existing profile
     const { data: existingProfile } = await supabase
@@ -51,7 +50,7 @@ export async function GET(request: Request) {
       company_name: user.user_metadata?.company_name || null,
       email_verified: false,
       auth_provider: provider,
-      avatar_url: avatarUrl || googleAvatarUrl || null,
+      avatar_url: googleAvatarUrl || null,
       updated_at: new Date().toISOString(),
     };
 

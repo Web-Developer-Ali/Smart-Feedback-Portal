@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
       { success: true, message: "Signup successful. OTP sent." },
       { status: 200 }
     );
-  } catch (err: any) {
+  } catch (err) {
     console.error("Signup error:", err);
     return NextResponse.json(
       { success: false, error: "Server error." },
