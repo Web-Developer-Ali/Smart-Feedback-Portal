@@ -337,9 +337,9 @@ export default function ProjectsPage() {
                   className="shadow-xl border-0 bg-white/90 backdrop-blur-sm hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]"
                 >
                   <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
+                    <div className="flex justify-between items-start gap-3">
                       <div className="flex-1 min-w-0">
-                        <CardTitle className="text-lg font-bold text-slate-800 mb-2 truncate">
+                        <CardTitle className="text-lg font-bold text-slate-800 mb-2 line-clamp-2 leading-tight">
                           {project.name}
                         </CardTitle>
                         <div className="flex flex-wrap gap-2 mb-2">
@@ -350,31 +350,37 @@ export default function ProjectsPage() {
                             {project.status.replace("_", " ")}
                           </Badge>
                         </div>
-                        <CardDescription className="text-slate-600">
+                        <CardDescription className="text-slate-600 truncate">
                           Client: {project.client_name}
                         </CardDescription>
                       </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit Project
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="text-red-600">
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="flex-shrink-0">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem>
+                              <Eye className="h-4 w-4 mr-2" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit Project
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-red-600">
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>

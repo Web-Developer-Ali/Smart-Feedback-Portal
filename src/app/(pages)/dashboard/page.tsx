@@ -400,7 +400,7 @@ export default function DashboardPage() {
                       className="bg-white text-indigo-600 hover:bg-indigo-50 shadow-lg border-0 px-4 sm:px-6 py-2 sm:py-3 text-base sm:text-lg font-semibold w-full sm:w-auto"
                     >
                       <Link
-                        href="/dashboard/projects/create"
+                        href="/dashboard/add-projects"
                         className="flex items-center justify-center gap-2"
                       >
                         <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
