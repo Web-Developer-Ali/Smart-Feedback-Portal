@@ -392,7 +392,8 @@ export default function DashboardPage() {
                         {displayProfile.full_name?.split(" ")[0] || "there"}! 👋
                       </h1>
                       <p className="text-indigo-100 text-base sm:text-lg">
-                        Here's what's happening with your projects today
+                        Here&rsquo;s what&rsquo;s happening with your projects
+                        today
                       </p>
                     </div>
                     <Button
@@ -400,7 +401,7 @@ export default function DashboardPage() {
                       className="bg-white text-indigo-600 hover:bg-indigo-50 shadow-lg border-0 px-4 sm:px-6 py-2 sm:py-3 text-base sm:text-lg font-semibold w-full sm:w-auto"
                     >
                       <Link
-                        href="/dashboard/add-projects"
+                        href="/dashboard/create-projects"
                         className="flex items-center justify-center gap-2"
                       >
                         <Plus className="h-4 w-4 sm:h-5 sm:w-5" />

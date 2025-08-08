@@ -1,14 +1,11 @@
 "use client"
 
-import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Briefcase, DollarSign, FileText, Calendar, Trash2 } from 'lucide-react'
+import { Briefcase, DollarSign, FileText } from 'lucide-react'
 import { PROJECT_TYPES } from "@/lib/validations/create_project"
-import { useState } from "react"
 import { FormStepProps } from "@/types/create_projects"
 
 export function ProjectDetailsStep({ formData, onInputChange, errors }: FormStepProps) {

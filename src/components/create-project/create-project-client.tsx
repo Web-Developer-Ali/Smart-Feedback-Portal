@@ -22,7 +22,7 @@ import {
   ProjectDetailsStep,
   BudgetTimelineStep,
   ClientInfoStep
-} from "@/components/create-project/form-steps"
+} from "./form-steps"
 import {
   type ProjectFormData,
   type Milestone,
@@ -30,7 +30,7 @@ import {
   createProjectSchema,
 } from "@/lib/validations/create_project"
 import { z } from "zod"
-import { MilestonesStep } from "./milestonesStep"
+import { MilestonesStep } from "@/components/create-project/milestones-step"
 
 const TOTAL_STEPS = 4
 
@@ -54,6 +54,8 @@ export function CreateProjectPage() {
         duration_days: 0,
         milestone_price: 0,
         description: "",
+        free_revisions: 2,
+        revision_rate: 50,
       },
     ],
   })
@@ -131,6 +133,8 @@ export function CreateProjectPage() {
           duration_days: 0,
           milestone_price: 0,
           description: "",
+          free_revisions: 2,
+          revision_rate: 50,
         },
       ],
     }))
@@ -210,7 +214,6 @@ export function CreateProjectPage() {
       }
 
       console.log("Creating project:", projectData)
-
       toast.success("Project created successfully!")
       router.push("/dashboard/projects")
     } catch (error) {
@@ -286,7 +289,7 @@ export function CreateProjectPage() {
             "@type": "WebPage",
             name: "Create New Project",
             description: "Create a new project with milestones, budget tracking, and client collaboration features.",
-            url: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/projects/create`,
+            url: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/create_projects`,
             isPartOf: {
               "@type": "WebSite",
               name: "Smart Feedback Portal",
@@ -326,8 +329,8 @@ export function CreateProjectPage() {
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-4">
                   <Button 
-                    variant="ghost" 
-                    onClick={() => router.push("/dashboard/projects")} 
+                    variant="ghost"
+                    onClick={() => router.push("/dashboard/projects")}
                     className="flex items-center gap-2 hover:bg-white/50"
                   >
                     <ArrowLeft className="h-4 w-4" />
@@ -339,8 +342,8 @@ export function CreateProjectPage() {
                   </div>
                 </div>
                 <Progress 
-                  value={progress} 
-                  className="h-2 bg-gray-200" 
+                  value={progress}
+                  className="h-2 bg-gray-200"
                   aria-label={`Progress: Step ${currentStep} of ${TOTAL_STEPS}`}
                 />
               </div>
@@ -366,7 +369,7 @@ export function CreateProjectPage() {
 
                 {currentStep < TOTAL_STEPS ? (
                   <Button 
-                    onClick={nextStep} 
+                    onClick={nextStep}
                     className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 order-1 sm:order-2"
                   >
                     Next
@@ -374,8 +377,8 @@ export function CreateProjectPage() {
                   </Button>
                 ) : (
                   <Button 
-                    onClick={handleSubmit} 
-                    disabled={loading} 
+                    onClick={handleSubmit}
+                    disabled={loading}
                     className="flex items-center gap-2 bg-green-600 hover:bg-green-700 order-1 sm:order-2"
                   >
                     {loading ? (

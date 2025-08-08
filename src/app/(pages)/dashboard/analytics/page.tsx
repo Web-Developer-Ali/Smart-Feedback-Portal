@@ -193,7 +193,7 @@ export default function AnalyticsPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {monthlyData.map((data, index) => (
+                    {monthlyData.map((data) => (
                       <div
                         key={data.month}
                         className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg"

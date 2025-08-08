@@ -1,28 +1,23 @@
-import { Calendar, Trash2 } from "lucide-react";
-import { useState } from "react";
-import { Card } from "../ui/card";
-import { Button } from "../ui/button";
-import { Label } from "../ui/label";
-import { Input } from "../ui/input";
-import { Textarea } from "../ui/textarea";
+import { Calendar, Trash2, Settings } from 'lucide-react';
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { MilestoneStepProps } from "@/types/create_projects";
 
-export function MilestonesStep({ 
-  formData, 
-  onMilestoneChange, 
-  onAddMilestone, 
-  onRemoveMilestone, 
+export function MilestonesStep({
+  formData,
+  onMilestoneChange,
+  onAddMilestone,
+  onRemoveMilestone,
   errors,
   totalMilestonePrice,
   isWithinBudget
-}: MilestoneStepProps & { 
+}: MilestoneStepProps & {
   totalMilestonePrice: number
-  isWithinBudget: boolean 
+  isWithinBudget: boolean
 }) {
-  const [freeRevisions, setFreeRevisions] = useState(2);
-  const [revisionRate, setRevisionRate] = useState(50);
-  const [showRevisionSettings, setShowRevisionSettings] = useState(false);
-
   return (
     <div className="space-y-6">
       <div className="text-center mb-8">
@@ -37,69 +32,63 @@ export function MilestonesStep({
 
       {/* Budget Summary */}
       {formData.project_budget && (
-       <Card className={`p-4 ${!isWithinBudget ? "border-amber-300 bg-amber-50" : "border-green-300 bg-green-50"}`}>
-  <div className="grid grid-cols-2 gap-2 text-sm">
-    {/* Budget Section */}
-    <div className="font-medium">Total Milestone Prices:</div>
-    <div className="font-bold text-right">
-      ${totalMilestonePrice.toLocaleString()}
-    </div>
-    
-    <div className="font-medium">Project Budget:</div>
-    <div className="font-bold text-right">
-      ${formData.project_budget?.toLocaleString() ?? '0'}
-    </div>
-    
-    <div className="font-medium">Budget Difference:</div>
-    <div className={`font-bold text-right ${
-      totalMilestonePrice > (formData.project_budget ?? 0) 
-        ? "text-red-600" 
-        : !isWithinBudget 
-          ? "text-amber-600" 
-          : "text-green-600"
-    }`}>
-      ${Math.abs(totalMilestonePrice - (formData.project_budget ?? 0)).toLocaleString()}
-      {totalMilestonePrice > (formData.project_budget ?? 0) ? " over" : " under"}
-    </div>
-    
-    <div className="font-medium">Allowed Budget Range:</div>
-    <div className="font-bold text-right">
-      ${Math.floor((formData.project_budget ?? 0) * 0.9).toLocaleString()} - ${Math.ceil((formData.project_budget ?? 0) * 1.1).toLocaleString()}
-    </div>
+        <Card className={`p-4 ${!isWithinBudget ? "border-amber-300 bg-amber-50" : "border-green-300 bg-green-50"}`}>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            {/* Budget Section */}
+            <div className="font-medium">Total Milestone Prices:</div>
+            <div className="font-bold text-right">
+              ${totalMilestonePrice.toLocaleString()}
+            </div>
+            
+            <div className="font-medium">Project Budget:</div>
+            <div className="font-bold text-right">
+              ${formData.project_budget?.toLocaleString() ?? '0'}
+            </div>
+            
+            <div className="font-medium">Budget Difference:</div>
+            <div className={`font-bold text-right ${
+              totalMilestonePrice > (formData.project_budget ?? 0) 
+                ? "text-red-600" 
+                : !isWithinBudget 
+                  ? "text-amber-600" 
+                  : "text-green-600"
+            }`}>
+              ${Math.abs(totalMilestonePrice - (formData.project_budget ?? 0)).toLocaleString()}
+              {totalMilestonePrice > (formData.project_budget ?? 0) ? " over" : " under"}
+            </div>
+            
+            <div className="font-medium">Allowed Budget Range:</div>
+            <div className="font-bold text-right">
+              $0 - ${formData.project_budget.toLocaleString()}
+            </div>
 
-    {/* Duration Section */}
-    <div className="font-medium">Total Milestone Days:</div>
-    <div className="font-bold text-right">
-      {formData.milestones?.reduce((sum, m) => sum + (m.duration_days ?? 0), 0) ?? 0} days
-    </div>
-    
-    <div className="font-medium">Project Duration:</div>
-    <div className="font-bold text-right">
-      {formData.estimated_days?.toLocaleString() ?? '0'} days
-    </div>
-    
-    <div className="font-medium">Duration Remaining:</div>
-    <div className={`font-bold text-right ${
-      (formData.milestones?.reduce((sum, m) => sum + (m.duration_days ?? 0), 0) ?? 0) > (formData.estimated_days ?? 0)
-        ? "text-red-600"
-        : "text-green-600"
-    }`}>
-      {Math.abs(
-        (formData.estimated_days ?? 0) - 
-        (formData.milestones?.reduce((sum, m) => sum + (m.duration_days ?? 0), 0) ?? 0)
-      )} days
-      {(formData.milestones?.reduce((sum, m) => sum + (m.duration_days ?? 0), 0) ?? 0) > (formData.estimated_days ?? 0)
-        ? " over"
-        : " under"}
-    </div>
-  </div>
-  
-  {!isWithinBudget && (
-    <p className="text-sm text-amber-600 mt-2">
-      ⚠️ Your milestone totals are outside the acceptable range (must be within 10% of project budget)
-    </p>
-  )}
-</Card>
+            {/* Duration Section */}
+            <div className="font-medium">Total Milestone Days:</div>
+            <div className="font-bold text-right">
+              {formData.milestones?.reduce((sum, m) => sum + (m.duration_days ?? 0), 0) ?? 0} days
+            </div>
+            
+            <div className="font-medium">Project Duration:</div>
+            <div className="font-bold text-right">
+              {formData.estimated_days?.toLocaleString() ?? '0'} days
+            </div>
+            
+            <div className="font-medium">Duration Remaining:</div>
+            <div className={`font-bold text-right ${
+              (formData.milestones?.reduce((sum, m) => sum + (m.duration_days ?? 0), 0) ?? 0) > (formData.estimated_days ?? 0)
+                ? "text-red-600"
+                : "text-green-600"
+            }`}>
+              {Math.abs(
+                (formData.estimated_days ?? 0) - 
+                (formData.milestones?.reduce((sum, m) => sum + (m.duration_days ?? 0), 0) ?? 0)
+              )} days
+              {(formData.milestones?.reduce((sum, m) => sum + (m.duration_days ?? 0), 0) ?? 0) > (formData.estimated_days ?? 0)
+                ? " over"
+                : " under"}
+            </div>
+          </div>
+        </Card>
       )}
 
       <div className="space-y-6">
@@ -110,7 +99,7 @@ export function MilestonesStep({
                 Milestone {index + 1}
               </h3>
               {formData.milestones && formData.milestones.length > 1 && (
-                <Button
+                <Button 
                   variant="outline" 
                   size="sm" 
                   onClick={() => onRemoveMilestone(index)}
@@ -212,54 +201,53 @@ export function MilestonesStep({
                   </span>
                 </div>
               </div>
+
+              {/* Revision Settings - Always Visible */}
+              <div className="md:col-span-2 mt-4">
+                <div className="border border-blue-200 bg-blue-50 rounded-lg p-4">
+                  <h4 className="font-medium text-blue-800 mb-3 flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    Revision Policy for this Milestone
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium text-blue-700" htmlFor={`free-revisions-${index}`}>
+                        Free Revisions
+                      </Label>
+                      <Input
+                        id={`free-revisions-${index}`}
+                        type="number"
+                        min="0"
+                        max="10"
+                        value={milestone.free_revisions ?? 2}
+                        onChange={(e) => onMilestoneChange(index, "free_revisions", Number(e.target.value))}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-blue-700" htmlFor={`revision-rate-${index}`}>
+                        Rate After Limit ($)
+                      </Label>
+                      <Input
+                        id={`revision-rate-${index}`}
+                        type="number"
+                        min="0"
+                        max="1000"
+                        value={milestone.revision_rate ?? 50}
+                        onChange={(e) => onMilestoneChange(index, "revision_rate", Number(e.target.value))}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-sm text-blue-700 mt-2">
+                    Client gets {milestone.free_revisions ?? 2} free revisions for this milestone, 
+                    then ${milestone.revision_rate ?? 50} per additional change.
+                  </p>
+                </div>
+              </div>
             </div>
           </Card>
         ))}
-
-              <Button
-        variant="ghost"
-        size="sm"
-        className="text-blue-600 hover:bg-blue-50"
-        onClick={() => setShowRevisionSettings(!showRevisionSettings)}
-      >
-        {showRevisionSettings ? 'Hide' : 'Show'} Revision Settings
-      </Button>
-
-      {/* Add this revisions card (conditionally shown) */}
-      {showRevisionSettings && (
-        <Card className="p-4 border border-blue-200 bg-blue-50">
-          <div className="space-y-4">
-            <h4 className="font-medium text-blue-800">Revision Policy</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="mb-2" htmlFor="free-revisions">Free Revisions</Label>
-                <Input
-                  id="free-revisions"
-                  type="number"
-                  min="0"
-                  max="10"
-                  value={freeRevisions}
-                  onChange={(e) => setFreeRevisions(Number(e.target.value))}
-                />
-              </div>
-              <div>
-                <Label className="mb-2" htmlFor="revision-rate">Rate After Limit ($)</Label>
-                <Input
-                  id="revision-rate"
-                  type="number"
-                  min="0"
-                  value={revisionRate}
-                  onChange={(e) => setRevisionRate(Number(e.target.value))}
-                />
-              </div>
-            </div>
-            <p className="text-sm text-blue-700">
-              Client gets {freeRevisions} free revisions, then ${revisionRate} per additional change.
-            </p>
-          </div>
-        </Card>
-      )}
-
 
         {errors.milestones && (
           <p className="text-sm text-red-600 text-center" role="alert">
