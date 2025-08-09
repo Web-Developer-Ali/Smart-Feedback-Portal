@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import { toast } from "sonner"
+import axios from 'axios';
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
@@ -133,8 +134,8 @@ export function CreateProjectPage() {
           duration_days: 0,
           milestone_price: 0,
           description: "",
-          free_revisions: 2,
-          revision_rate: 50,
+          free_revisions: 1,
+          revision_rate: 20,
         },
       ],
     }))
@@ -189,64 +190,85 @@ export function CreateProjectPage() {
     setErrors({}) // Clear errors when going back
   }, [])
 
-  const handleSubmit = useCallback(async () => {
-    try {
-      // Final validation
-      const validatedData = createProjectSchema.parse(formData)
-      
-      setLoading(true)
-      setErrors({})
+const handleSubmit = useCallback(async () => {
+  try {
+    // Final validation
+    const validatedData = createProjectSchema.parse(formData);
+    setLoading(true);
+    setErrors({});
 
-      // Simulate API call - replace with actual Supabase insert
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+    // Call the API endpoint using Axios
+    const { data } = await axios.post('/api/project/create_project', validatedData, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
-      // Generate review token and link
-      const reviewToken = Math.random().toString(36).substring(2, 15)
-      const reviewLink = `${window.location.origin}/review/${reviewToken}`
+    // Generate the review link using the JWT token
+    const reviewLink = `${window.location.origin}/review/${data.jwt_token}`;
 
-      const projectData = {
-        ...validatedData,
-        review_token: reviewToken,
-        review_link: reviewLink,
-        status: "pending" as const,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+    console.log("Project created successfully:", {
+      projectId: data.project_id,
+      reviewToken: data.jwt_token,
+      reviewLink
+    });
+
+    toast.success("Project created successfully!", {
+      action: {
+        label: "View Project",
+        onClick: () => router.push(`/dashboard/projects/${data.project_id}`)
       }
+    });
 
-      console.log("Creating project:", projectData)
-      toast.success("Project created successfully!")
-      router.push("/dashboard/projects")
-    } catch (error) {
-      console.error("Error creating project:", error)
+    router.push("/dashboard/projects");
+  } catch (error) {
+    console.error("Error creating project:", error);
+    
+    if (axios.isAxiosError(error)) {
+      // Handle API errors
+      const errorData = error.response?.data;
       
-      if (error instanceof z.ZodError) {
-        // Handle Zod validation errors
-        const errorMessages = error.errors.map(err => err.message)
+      if (error.response?.status === 422 && errorData?.details) {
+        // Handle Zod validation errors from API
+        const flattenedErrors = errorData.details.fieldErrors;
+        const errorMessages = Object.values(flattenedErrors).flat();
         
-        // Show the first error in the toast
-        if (errorMessages.length > 0) {
-          toast.error("Please fix the following issues:", {
-            description: errorMessages.join('\n')
-          })
-        }
+        toast.error("Validation errors occurred", {
+          description: errorMessages.join('\n')
+        });
         
-        // Convert Zod errors to form errors format
-        const newErrors = error.errors.reduce((acc, err) => {
-          const path = err.path.join('.')
-          acc[path] = err.message
-          return acc
-        }, {} as Record<string, string>)
-        
-        setErrors(newErrors)
-      } else if (error instanceof Error) {
-        toast.error(`Failed to create project: ${error.message}`)
+        setErrors(flattenedErrors);
       } else {
-        toast.error("Failed to create project. Please try again.")
+        // Handle other API errors
+        toast.error(errorData?.error || 'Failed to create project');
       }
-    } finally {
-      setLoading(false)
+    } 
+    else if (error instanceof z.ZodError) {
+      // Handle client-side validation errors
+      const errorMessages = error.errors.map(err => err.message);
+      
+      toast.error("Please fix the following issues:", {
+        description: errorMessages.join('\n')
+      });
+      
+      const newErrors = error.errors.reduce((acc, err) => {
+        const path = err.path.join('.');
+        acc[path] = err.message;
+        return acc;
+      }, {} as Record<string, string>);
+      
+      setErrors(newErrors);
+    } 
+    else if (error instanceof Error) {
+      toast.error(`Failed to create project: ${error.message}`);
+    } 
+    else {
+      toast.error("Failed to create project. Please try again.");
     }
-  }, [formData, router])
+  } finally {
+    setLoading(false);
+  }
+}, [formData, router]);
 
   const renderStepContent = () => {
     const commonProps = {

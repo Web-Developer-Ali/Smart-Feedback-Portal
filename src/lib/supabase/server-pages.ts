@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr"
 import type { GetServerSidePropsContext, NextApiRequest, NextApiResponse } from "next"
 
 export function createClient(context: GetServerSidePropsContext | { req: NextApiRequest; res: NextApiResponse }) {
-  return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+  return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!, {
     cookies: {
       getAll() {
         return Object.keys(context.req.cookies).map((name) => ({
