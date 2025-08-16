@@ -4,6 +4,7 @@ CREATE TABLE milestones (
   project_id UUID REFERENCES project(id) NOT NULL,
   title TEXT NOT NULL,
   duration_days INTEGER NOT NULL,
+  description TEXT,
   status TEXT NOT NULL CHECK (status IN ('not_started', 'submitted', 'approved', 'rejected')),
   milestone_price NUMERIC(10,2) NOT NULL,
   is_payment_cleared BOOLEAN DEFAULT FALSE,

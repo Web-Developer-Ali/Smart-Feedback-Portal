@@ -4,8 +4,8 @@ CREATE TABLE "project" (
   name TEXT NOT NULL,
   type TEXT,
   description TEXT,
-  ADD COLUMN client_name TEXT;
-  ADD COLUMN client_email TEXT;
+  client_name TEXT,
+  client_email TEXT,
   -- Relationships
   agency_id UUID NOT NULL REFERENCES "profiles"(id) ON DELETE CASCADE,
   
@@ -21,11 +21,7 @@ CREATE TABLE "project" (
   
   -- Timestamps
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  
-  -- Client information
-  client_name TEXT,
-  client_email TEXT
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 -- Indexes for performance

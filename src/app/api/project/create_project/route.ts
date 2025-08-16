@@ -28,7 +28,13 @@ export async function POST(request: Request) {
         { status: 401 }
       );
     }
-const tempProjectId = crypto.randomUUID();
+
+      const jwtToken = await generateProjectToken({
+      clientName: validated.data.client_name,
+      clientEmail: validated.data.client_email,
+      projectBudget: validated.data.project_budget,
+      projectDuration: validated.data.estimated_days,
+    });
 
     // First create project without JWT (temporarily empty)
     const { data: project, error: projectError } = await supabase
@@ -38,7 +44,7 @@ const tempProjectId = crypto.randomUUID();
         type: validated.data.type,
         agency_id: user.id,
         status: "pending",
-        jwt_token: tempProjectId, // Temporary empty value
+        jwt_token: jwtToken, // Temporary empty value
         project_price: validated.data.project_budget,
         project_duration_days: validated.data.estimated_days,
         description: validated.data.description,
@@ -50,27 +56,6 @@ const tempProjectId = crypto.randomUUID();
 
     if (projectError)
       throw new Error(`Project creation failed: ${projectError.message}`);
-
-    // Now generate JWT with actual project ID
-    const jwtToken = await generateProjectToken({
-      projectId: project.id,
-      clientName: validated.data.client_name,
-      clientEmail: validated.data.client_email,
-      projectBudget: validated.data.project_budget,
-      projectDuration: validated.data.estimated_days,
-    });
-
-    // Update project with the generated JWT
-    const { error: updateError } = await supabase
-      .from("project")
-      .update({ jwt_token: jwtToken })
-      .eq("id", project.id);
-
-    if (updateError) {
-      // Rollback project creation if JWT update fails
-      await supabase.from("project").delete().eq("id", project.id);
-      throw new Error(`JWT update failed: ${updateError.message}`);
-    }
 
     // Create milestones
     const milestones = validated.data.milestones.map((m) => ({
