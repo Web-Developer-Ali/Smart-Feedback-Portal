@@ -1,116 +1,121 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/client';
+import { z } from 'zod';
+import { createClient } from '@/lib/supabase/server';
+import { Milestone, Review } from '@/types/ProjectDetailPage';
 
+// Dynamic rendering and cache bypass
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
+// Input validation schema
+const querySchema = z.object({
+  projectId: z.string().uuid({ message: 'Invalid project ID format' }),
+});
+
 export async function GET(request: Request) {
   try {
+    const supabase = createClient();
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
 
-    if (!projectId) {
+    // Validate query param
+    const validated = querySchema.safeParse({ projectId });
+    if (!validated.success) {
       return NextResponse.json(
-        { error: 'Missing projectId parameter' },
+        { error: 'Validation failed', details: validated.error.flatten() },
         { status: 400 }
       );
     }
 
-    // Validate UUID format
-    if (
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        projectId
+    // Authenticate user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    // Fetch project and verify ownership
+    const { data: project, error: projectError } = await supabase
+      .from('project')
+      .select(
+        'id, name, type, created_at, client_name, client_email, project_duration_days, jwt_token, agency_id'
       )
-    ) {
+      .eq('id', validated.data.projectId)
+      .single();
+
+    if (projectError || !project) {
       return NextResponse.json(
-        { error: 'Invalid project ID format' },
-        { status: 400 }
+        { error: 'Project not found' },
+        { status: 404 }
       );
     }
 
-    const supabase = createClient();
+    if (project.agency_id !== user.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized access to project' },
+        { status: 403 }
+      );
+    }
 
-    // Execute all queries in parallel
-    const [projectQuery, milestonesQuery, reviewsQuery] = await Promise.all([
-      supabase
-        .from('project')
-        .select(
-          'id,name,type,created_at,client_name,client_email,project_duration_days'
-        )
-        .eq('id', projectId)
-        .single(),
-
+    // Fetch milestones and reviews in parallel
+    const [milestonesQuery, reviewsQuery] = await Promise.all([
       supabase
         .from('milestones')
-        .select(`
-          milestone_price,
-          duration_days,
-          free_revisions,
-          title,
-          description,
-          status,
-          revision_rate,
-          used_revisions,
-          id
-        `)
-        .eq('project_id', projectId)
+        .select(
+          'id, milestone_price, duration_days, free_revisions, title, description, status, revision_rate, used_revisions'
+        )
+        .eq('project_id', project.id)
         .order('created_at', { ascending: true }),
 
       supabase
         .from('reviews')
-        .select('stars,review,created_at,milestone_id')
-        .eq('project_id', projectId),
+        .select('stars, review, created_at, milestone_id')
+        .eq('project_id', project.id),
     ]);
 
-    // Error handling
-    if (projectQuery.error) {
-      console.error('Project query error:', projectQuery.error);
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
-
     if (milestonesQuery.error || reviewsQuery.error) {
-      console.error('Query errors:', {
-        milestones: milestonesQuery.error,
-        reviews: reviewsQuery.error,
-      });
       return NextResponse.json(
         { error: 'Failed to fetch project data' },
         { status: 500 }
       );
     }
 
-    // Transform reviews into map
-    const reviewsByMilestone = new Map<string, any>();
-    reviewsQuery.data?.forEach((review) => {
-      if (review.milestone_id) {
-        const existing = reviewsByMilestone.get(review.milestone_id) || [];
-        reviewsByMilestone.set(review.milestone_id, [
-          ...existing,
-          {
-            stars: review.stars,
-            review: review.review,
-            created_at: review.created_at,
-          },
-        ]);
-      }
-    });
+    // Map reviews to milestones
+    const reviewsByMilestone = new Map<string, Review[]>();
+    for (const review of reviewsQuery.data ?? []) {
+      const existing = reviewsByMilestone.get(review.milestone_id) ?? [];
+      reviewsByMilestone.set(review.milestone_id, [...existing, review]);
+    }
 
-    // Construct response
+    // Shape response
     const response = {
-      ...projectQuery.data,
-      milestones:
-        milestonesQuery.data?.map((milestone) => ({
-          milestone_price: milestone.milestone_price,
-          duration_days: milestone.duration_days,
-          free_revisions: milestone.free_revisions,
-          title: milestone.title,
-          description: milestone.description || '',
-          status: milestone.status,
-          revision_rate: milestone.revision_rate || 0,
-          used_revisions: milestone.used_revisions,
-          reviews: reviewsByMilestone.get(milestone.id) || [],
-        })) || [],
+      id: project.id,
+      name: project.name,
+      type: project.type,
+      created_at: project.created_at,
+      client_name: project.client_name,
+      client_email: project.client_email,
+      project_duration_days: project.project_duration_days,
+      jwt_token: project.jwt_token,
+      milestones: (milestonesQuery.data ?? []).map((m: Milestone) => ({
+        milestone_id: m.id,
+        milestone_price: m.milestone_price,
+        duration_days: m.duration_days,
+        free_revisions: m.free_revisions,
+        title: m.title,
+        description: m.description ?? '',
+        status: m.status,
+        revision_rate: m.revision_rate ?? 0,
+        used_revisions: m.used_revisions,
+        reviews: reviewsByMilestone.get(m.id) ?? [],
+      })),
     };
 
     return NextResponse.json(response, {
@@ -121,9 +126,14 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    console.error('Server error:', error);
+    const message =
+      error instanceof Error ? error.message : 'Internal server error';
     return NextResponse.json(
-      { error: 'Internal server error' },
+      {
+        error: message,
+        ...(process.env.NODE_ENV === 'development' &&
+          error instanceof Error && { stack: error.stack }),
+      },
       { status: 500 }
     );
   }

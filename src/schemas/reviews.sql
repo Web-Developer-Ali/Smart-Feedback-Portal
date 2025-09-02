@@ -1,5 +1,3 @@
--- Run First
-BEGIN;
 CREATE TABLE reviews (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL,

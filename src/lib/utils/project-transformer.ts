@@ -27,20 +27,18 @@ export function transformApiProject(apiProject: ApiProject): Project {
     status: projectStatus,
     client_name: apiProject.client_name,
     client_email: apiProject.client_email,
-    client_phone: "N/A", // Not provided in API
-    client_company: "N/A", // Not provided in API
     project_budget: totalBudget,
     estimated_days: apiProject.project_duration_days,
     created_at: new Date(apiProject.created_at).toLocaleDateString(),
     updated_at: new Date(apiProject.created_at).toLocaleDateString(),
     review_count: reviewCount,
     average_rating: Math.round(averageRating * 10) / 10,
-    progress: 0, // Will be calculated separately
-    review_token: apiProject.review_token || "default-token", // Add review token support
+    progress: 0,
+    jwt_token: apiProject.jwt_token || "default-token",
   }
 }
 
-export function transformApiMilestone(apiMilestone: ApiMilestone, index: number): Milestone {
+export function transformApiMilestone(apiMilestone: ApiMilestone): Milestone {
   // Transform status from API to UI format
   const statusMap: Record<string, Milestone["status"]> = {
     not_started: "pending",
@@ -55,7 +53,7 @@ export function transformApiMilestone(apiMilestone: ApiMilestone, index: number)
   dueDate.setDate(dueDate.getDate() + apiMilestone.duration_days)
 
   return {
-    id: `milestone-${index}`,
+    id: apiMilestone.milestone_id,
     name: apiMilestone.title,
     description: apiMilestone.description,
     duration_days: apiMilestone.duration_days,
@@ -66,7 +64,7 @@ export function transformApiMilestone(apiMilestone: ApiMilestone, index: number)
     free_revisions: apiMilestone.free_revisions,
     used_revisions: apiMilestone.used_revisions,
     revision_rate: apiMilestone.revision_rate,
-    deliverables: [], // Empty for now, can be populated later
+    deliverables: [],
   }
 }
 

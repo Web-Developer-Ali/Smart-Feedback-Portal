@@ -2,63 +2,90 @@ import { NextResponse } from "next/server";
 import { createProjectSchema } from "@/lib/validations/create_project";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
 import { generateProjectToken } from "@/lib/utils/tokens";
 
 export async function POST(request: Request) {
+  let projectId: string | null = null;
+  
   try {
     const supabase = createClient();
-    const requestData = await request.json();
-    // Validate input
-    const validated = createProjectSchema.safeParse(requestData);
-    if (!validated.success) {
+    
+    // Parse and validate input in parallel with auth check
+    const [requestData, authResult] = await Promise.allSettled([
+      request.json(),
+      supabase.auth.getUser()
+    ]);
+
+    // Handle request parsing error
+    if (requestData.status === 'rejected') {
       return NextResponse.json(
-        { error: "Validation failed", details: validated.error.flatten() },
-        { status: 422 }
+        { error: "Invalid JSON payload" },
+        { status: 400 }
       );
     }
-    // Verify user session
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-    if (authError || !user) {
+
+    // Handle authentication error
+    if (authResult.status === 'rejected' || !authResult.value.data.user) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
       );
     }
 
-      const jwtToken = await generateProjectToken({
-      clientName: validated.data.client_name,
-      clientEmail: validated.data.client_email,
-      projectBudget: validated.data.project_budget,
-      projectDuration: validated.data.estimated_days,
+    const user = authResult.value.data.user;
+    const validated = createProjectSchema.safeParse(requestData.value);
+
+    if (!validated.success) {
+      return NextResponse.json(
+        { 
+          error: "Validation failed", 
+          details: validated.error.flatten() 
+        },
+        { status: 422 }
+      );
+    }
+
+    const { data } = validated;
+
+    // Generate JWT token (non-blocking if possible, but we need it for the project)
+    const jwtToken = await generateProjectToken({
+      clientName: data.client_name,
+      clientEmail: data.client_email,
+      projectBudget: data.project_budget,
+      projectDuration: data.estimated_days,
     });
 
-    // First create project without JWT (temporarily empty)
+    // Prepare project data
+    const projectData = {
+      name: data.name,
+      type: data.type,
+      agency_id: user.id,
+      status: "pending",
+      jwt_token: jwtToken,
+      project_price: data.project_budget,
+      project_duration_days: data.estimated_days,
+      description: data.description,
+      client_name: data.client_name,
+      client_email: data.client_email,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // Create project
     const { data: project, error: projectError } = await supabase
       .from("project")
-      .insert({
-        name: validated.data.name,
-        type: validated.data.type,
-        agency_id: user.id,
-        status: "pending",
-        jwt_token: jwtToken, // Temporary empty value
-        project_price: validated.data.project_budget,
-        project_duration_days: validated.data.estimated_days,
-        description: validated.data.description,
-        client_name: validated.data.client_name,
-        client_email: validated.data.client_email,
-      })
+      .insert(projectData)
       .select("id")
       .single();
 
-    if (projectError)
+    if (projectError) {
       throw new Error(`Project creation failed: ${projectError.message}`);
+    }
 
-    // Create milestones
-    const milestones = validated.data.milestones.map((m) => ({
+    projectId = project.id;
+
+    // Prepare milestones data
+    const milestones = data.milestones.map((m) => ({
       project_id: project.id,
       title: m.name,
       duration_days: m.duration_days,
@@ -67,27 +94,61 @@ export async function POST(request: Request) {
       free_revisions: m.free_revisions,
       revision_rate: m.revision_rate,
       description: m.description || "",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     }));
 
+    // Create milestones
     const { error: milestonesError } = await supabase
       .from("milestones")
       .insert(milestones);
 
     if (milestonesError) {
-      // Rollback everything if milestones fail
-      await supabase.from("project").delete().eq("id", project.id);
       throw new Error(`Milestones creation failed: ${milestonesError.message}`);
     }
 
-    revalidatePath("/dashboard/projects");
+    // Create project activity log (non-blocking)
+    const activityPromise = supabase
+      .from("project_activities")
+      .insert({
+        project_id: project.id,
+        activity_type: "project_created",
+        description: `Project "${data.name}" created with ${data.milestones.length} milestones`,
+        performed_by: user.id,
+        metadata: {
+          client_name: data.client_name,
+          client_email: data.client_email,
+          total_budget: data.project_budget,
+          duration_days: data.estimated_days,
+          milestone_count: data.milestones.length,
+        },
+        created_at: new Date().toISOString(),
+      })
+
+    // Wait for non-critical operations to complete (with timeout)
+    await Promise.race([
+      Promise.allSettled([activityPromise]),
+      new Promise(resolve => setTimeout(resolve, 3000)) // 3s timeout for non-critical ops
+    ]);
 
     return NextResponse.json({
       success: true,
       project_id: project.id,
-      jwt_token: jwtToken,
+      message: "Project created successfully",
     });
-  } catch (error: any) {
+
+  } catch (error) {
     console.error("API Error:", error);
+
+    // Rollback project creation if milestones failed
+    if (projectId) {
+      try {
+        await createClient().from("project").delete().eq("id", projectId);
+        console.log("Project rollback completed due to error");
+      } catch (rollbackError) {
+        console.error("Project rollback failed:", rollbackError);
+      }
+    }
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -98,8 +159,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        error: error.message || "Internal server error",
-        ...(process.env.NODE_ENV === "development" && { stack: error.stack }),
+        error: (error instanceof Error ? error.message : "Internal server error"),
+        ...(process.env.NODE_ENV === "development" && { stack: error instanceof Error ? error.stack : undefined }),
       },
       { status: 500 }
     );

@@ -1,5 +1,4 @@
 "use client"
-
 import { useEffect, useState, useCallback, useMemo } from "react"
 import { useParams } from "next/navigation"
 import ProjectDetailSkeleton from "@/components/project_detail/project-detail-skeleton"
@@ -26,6 +25,10 @@ export default function ProjectDetailClient() {
       setLoading(true)
       setError(null)
 
+      if (!projectId) {
+        throw new Error("Project ID is required")
+      }
+
       // Use your actual API endpoint
       const response = await fetch(`/api/project/get_project_details?projectId=${projectId}`, {
         method: "GET",
@@ -47,10 +50,14 @@ export default function ProjectDetailClient() {
 
       const apiProject: ApiProject = await response.json()
 
+      if (!apiProject || !apiProject.id) {
+        throw new Error("Invalid project data received")
+      }
+
       // Transform the API data to match your UI
       const transformedProject = transformApiProject(apiProject)
-      const transformedMilestones = apiProject.milestones.map((milestone, index) =>
-        transformApiMilestone(milestone, index),
+      const transformedMilestones = (apiProject.milestones || []).map((milestone, index) =>
+        transformApiMilestone(milestone)
       )
       const transformedReviews = transformApiReviews(apiProject)
 
@@ -78,54 +85,12 @@ export default function ProjectDetailClient() {
     }
   }, [projectId, fetchProjectData])
 
-  const handleMilestoneUpdate = useCallback(
-    async (milestoneId: string, status: Milestone["status"], notes?: string) => {
-      try {
-        // You can implement this API endpoint later
-        const response = await fetch(`/api/project/update_milestone`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            projectId,
-            milestoneId,
-            status,
-            submission_notes: notes,
-          }),
-        })
-
-        if (!response.ok) {
-          throw new Error("Failed to update milestone")
-        }
-
-        // Optimistic update
-        setMilestones((prev) =>
-          prev.map((m) =>
-            m.id === milestoneId
-              ? {
-                  ...m,
-                  status,
-                  submitted_at: status === "submitted" ? new Date().toLocaleDateString() : m.submitted_at,
-                  submission_notes: notes || m.submission_notes,
-                }
-              : m,
-          ),
-        )
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "Failed to update milestone"
-        throw new Error(errorMessage)
-      }
-    },
-    [projectId],
-  )
-
   const projectStats = useMemo(() => {
     if (!milestones.length) return { completed: 0, total: 0, progress: 0 }
 
     const completed = milestones.filter((m) => m.status === "approved").length
     const total = milestones.length
-    const progress = (completed / total) * 100
+    const progress = total > 0 ? (completed / total) * 100 : 0
 
     return { completed, total, progress: Math.round(progress) }
   }, [milestones])
@@ -150,7 +115,7 @@ export default function ProjectDetailClient() {
           milestones={milestones}
           reviews={reviews}
           projectStats={projectStats}
-          onMilestoneUpdate={handleMilestoneUpdate}
+          onRefreshProject={fetchProjectData}
         />
       </div>
     </div>

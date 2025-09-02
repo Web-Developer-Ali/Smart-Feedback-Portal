@@ -19,13 +19,13 @@ export interface Milestone {
   free_revisions: number
   revision_rate: number
   used_revisions: number
-  status: "not_started" | "in_progress" | "submitted" | "approved" | "rejected"
-  reviews: Review[]
+  status?: "not_started" | "in_progress" | "submitted" | "approved" | "rejected"
+  reviews?: Review[]
 }
 
 export interface Review {
-  id: string
-  client_name: string
+  id?: string
+  client_name?: string
   stars: number
   review: string
   created_at: string

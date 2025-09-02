@@ -203,20 +203,10 @@ const handleSubmit = useCallback(async () => {
         'Content-Type': 'application/json',
       },
     });
-
-    // Generate the review link using the JWT token
-    const reviewLink = `${window.location.origin}/review/${data.jwt_token}`;
-
-    console.log("Project created successfully:", {
-      projectId: data.project_id,
-      reviewToken: data.jwt_token,
-      reviewLink
-    });
-
     toast.success("Project created successfully!", {
       action: {
         label: "View Project",
-        onClick: () => router.push(`/dashboard/projects/${data.project_id}`)
+        onClick: () => router.push(`/project_detail/${data.project_id}`)
       }
     });
 

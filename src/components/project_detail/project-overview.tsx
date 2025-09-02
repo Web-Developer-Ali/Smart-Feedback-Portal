@@ -17,6 +17,25 @@ interface ProjectOverviewProps {
 }
 
 export default function ProjectOverview({ project, projectStats }: ProjectOverviewProps) {
+  const getClientInitials = (name: string) => {
+    if (!name || name === "N/A") return "?"
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2)
+  }
+
+  const formatDate = (dateString: string) => {
+    if (!dateString || dateString === "N/A") return "Unknown"
+    try {
+      return new Date(dateString).toLocaleDateString()
+    } catch {
+      return dateString
+    }
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
       {/* Enhanced Project Info */}
@@ -30,7 +49,7 @@ export default function ProjectOverview({ project, projectStats }: ProjectOvervi
                   <Badge className="bg-blue-100 text-blue-800 border-blue-200 font-medium">{project.type}</Badge>
                   <div className="flex items-center gap-1 text-sm text-gray-600">
                     <Calendar className="h-4 w-4" />
-                    <span>Started {project.created_at}</span>
+                    <span>Started {formatDate(project.created_at)}</span>
                   </div>
                 </div>
               </div>
@@ -43,7 +62,7 @@ export default function ProjectOverview({ project, projectStats }: ProjectOvervi
 
           <CardContent className="p-6">
             <CardDescription className="text-base leading-relaxed text-gray-700 mb-6">
-              {project.description}
+              {project.description || "No description available"}
             </CardDescription>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
@@ -52,14 +71,16 @@ export default function ProjectOverview({ project, projectStats }: ProjectOvervi
                   <DollarSign className="h-5 w-5 text-green-600" />
                   <span className="text-sm font-medium text-green-700">Budget</span>
                 </div>
-                <div className="text-xl font-bold text-green-800">${project.project_budget.toLocaleString()}</div>
+                <div className="text-xl font-bold text-green-800">
+                  ${(project.project_budget || 0).toLocaleString()}
+                </div>
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Clock className="h-5 w-5 text-blue-600" />
                   <span className="text-sm font-medium text-blue-700">Duration</span>
                 </div>
-                <div className="text-xl font-bold text-blue-800">{project.estimated_days} days</div>
+                <div className="text-xl font-bold text-blue-800">{project.estimated_days || 0} days</div>
               </div>
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
@@ -67,7 +88,7 @@ export default function ProjectOverview({ project, projectStats }: ProjectOvervi
                   <span className="text-sm font-medium text-amber-700">Rating</span>
                 </div>
                 <div className="text-xl font-bold text-amber-800">
-                  {project.average_rating > 0 ? project.average_rating : "N/A"}
+                  {project.average_rating && project.average_rating > 0 ? project.average_rating.toFixed(1) : "N/A"}
                 </div>
               </div>
               <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 text-center">
@@ -75,7 +96,7 @@ export default function ProjectOverview({ project, projectStats }: ProjectOvervi
                   <MessageSquare className="h-5 w-5 text-purple-600" />
                   <span className="text-sm font-medium text-purple-700">Reviews</span>
                 </div>
-                <div className="text-xl font-bold text-purple-800">{project.review_count}</div>
+                <div className="text-xl font-bold text-purple-800">{project.review_count || 0}</div>
               </div>
             </div>
 
@@ -90,7 +111,7 @@ export default function ProjectOverview({ project, projectStats }: ProjectOvervi
                 <span>
                   {projectStats.completed} of {projectStats.total} milestones completed
                 </span>
-                <span>{projectStats.total - projectStats.completed} remaining</span>
+                <span>{Math.max(0, projectStats.total - projectStats.completed)} remaining</span>
               </div>
             </div>
           </CardContent>
@@ -109,30 +130,29 @@ export default function ProjectOverview({ project, projectStats }: ProjectOvervi
           <div className="flex items-center gap-4">
             <Avatar className="h-14 w-14 bg-blue-100 border-2 border-blue-200">
               <AvatarFallback className="bg-blue-100 text-blue-700 font-bold text-lg">
-                {project.client_name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")}
+                {getClientInitials(project.client_name)}
               </AvatarFallback>
             </Avatar>
             <div>
-              <div className="font-bold text-lg text-gray-900">{project.client_name}</div>
-              <div className="text-sm text-gray-600">{project.client_company}</div>
+              <div className="font-bold text-lg text-gray-900">{project.client_name || "Unknown Client"}</div>
+              <div className="text-sm text-gray-600">{project.client_company || "No company"}</div>
             </div>
           </div>
 
           <div className="space-y-3">
-            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-              <Mail className="h-4 w-4 text-gray-500 flex-shrink-0" />
-              <span className="text-sm text-gray-700 truncate">{project.client_email}</span>
-            </div>
-            {project.client_phone !== "N/A" && (
+            {project.client_email && project.client_email !== "N/A" && (
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <Mail className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                <span className="text-sm text-gray-700 truncate">{project.client_email}</span>
+              </div>
+            )}
+            {project.client_phone && project.client_phone !== "N/A" && (
               <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                 <Phone className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 <span className="text-sm text-gray-700">{project.client_phone}</span>
               </div>
             )}
-            {project.client_company !== "N/A" && (
+            {project.client_company && project.client_company !== "N/A" && (
               <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                 <Building className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 <span className="text-sm text-gray-700 truncate">{project.client_company}</span>
@@ -143,12 +163,12 @@ export default function ProjectOverview({ project, projectStats }: ProjectOvervi
           <div className="pt-4 border-t border-gray-200">
             <div className="grid grid-cols-2 gap-4 text-center">
               <div>
-                <div className="text-2xl font-bold text-blue-600">{project.review_count}</div>
+                <div className="text-2xl font-bold text-blue-600">{project.review_count || 0}</div>
                 <div className="text-xs text-gray-600">Reviews</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-amber-600">
-                  {project.average_rating > 0 ? project.average_rating : "N/A"}
+                  {project.average_rating && project.average_rating > 0 ? project.average_rating.toFixed(1) : "N/A"}
                 </div>
                 <div className="text-xs text-gray-600">Avg Rating</div>
               </div>

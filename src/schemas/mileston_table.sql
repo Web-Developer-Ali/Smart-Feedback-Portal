@@ -5,13 +5,15 @@ CREATE TABLE milestones (
   title TEXT NOT NULL,
   duration_days INTEGER NOT NULL,
   description TEXT,
-  status TEXT NOT NULL CHECK (status IN ('not_started', 'submitted', 'approved', 'rejected')),
+  status TEXT NOT NULL CHECK (status IN ('not_started','in_progress', 'submitted', 'approved', 'rejected')),
   milestone_price NUMERIC(10,2) NOT NULL,
   is_payment_cleared BOOLEAN DEFAULT FALSE,
   free_revisions INTEGER DEFAULT 0,
   revision_rate NUMERIC(10,2),
   used_revisions INTEGER DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  started_at TIMESTAMP,
+  submitted_at TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

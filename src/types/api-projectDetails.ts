@@ -1,4 +1,4 @@
-// API Response Types (exactly matching your API)
+// API Response Types (exactly matching your API and frontend expectations)
 export interface ApiProject {
   id: string
   name: string
@@ -8,10 +8,11 @@ export interface ApiProject {
   client_email: string
   project_duration_days: number
   milestones: ApiMilestone[]
-  review_token?: string
+  jwt_token?: string
 }
 
 export interface ApiMilestone {
+  milestone_id: string
   milestone_price: number
   duration_days: number
   free_revisions: number
@@ -42,8 +43,6 @@ export interface Project {
   status: "pending" | "in_progress" | "completed" | "cancelled"
   client_name: string
   client_email: string
-  client_phone: string
-  client_company: string
   project_budget: number
   estimated_days: number
   created_at: string
@@ -51,7 +50,7 @@ export interface Project {
   review_count: number
   average_rating: number
   progress: number
-  review_token?: string
+  jwt_token?: string
 }
 
 export interface Milestone {
@@ -89,4 +88,16 @@ export interface Review {
   review: string
   created_at: string
   milestone_id?: string
+}
+
+export interface updatedMilestone{
+  id: string
+  milestone_price: number
+  duration_days: number
+  free_revisions: number
+  name: string
+  description: string
+   status: "pending" | "in_progress" | "submitted" | "approved" | "rejected"
+  revision_rate: number
+  used_revisions: number
 }
