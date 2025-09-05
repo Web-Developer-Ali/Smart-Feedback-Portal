@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import { Milestone, Review } from '@/types/ProjectDetailPage';
+import { Milestone, Review, ProjectResponse } from '@/types/ProjectDetailPage';
 
 // Dynamic rendering and cache bypass
 export const dynamic = 'force-dynamic';
@@ -13,6 +13,20 @@ const querySchema = z.object({
   projectId: z.string().uuid({ message: 'Invalid project ID format' }),
 });
 
+// Helper function to ensure milestone data matches ProjectResponse type
+const mapMilestoneToResponse = (m: Milestone, reviews: Review[] = []) => ({
+  milestone_id: m.id,
+  milestone_price: m.milestone_price,
+  duration_days: m.duration_days,
+  free_revisions: m.free_revisions,
+  title: m.title,
+  description: m.description ?? '',
+  status: m.status ?? 'not_started', // Provide default value
+  revision_rate: m.revision_rate ?? 0,
+  used_revisions: m.used_revisions,
+  reviews: reviews,
+});
+
 export async function GET(request: Request) {
   try {
     const supabase = createClient();
@@ -20,6 +34,13 @@ export async function GET(request: Request) {
     const projectId = searchParams.get('projectId');
 
     // Validate query param
+    if (!projectId) {
+      return NextResponse.json(
+        { error: 'Project ID is required' },
+        { status: 400 }
+      );
+    }
+
     const validated = querySchema.safeParse({ projectId });
     if (!validated.success) {
       return NextResponse.json(
@@ -29,10 +50,7 @@ export async function GET(request: Request) {
     }
 
     // Authenticate user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
       return NextResponse.json(
@@ -44,9 +62,7 @@ export async function GET(request: Request) {
     // Fetch project and verify ownership
     const { data: project, error: projectError } = await supabase
       .from('project')
-      .select(
-        'id, name, type, created_at, client_name, client_email, project_duration_days, jwt_token, agency_id'
-      )
+      .select('id, name, type, created_at, client_name, client_email, project_duration_days, jwt_token, agency_id')
       .eq('id', validated.data.projectId)
       .single();
 
@@ -65,12 +81,10 @@ export async function GET(request: Request) {
     }
 
     // Fetch milestones and reviews in parallel
-    const [milestonesQuery, reviewsQuery] = await Promise.all([
+    const [milestonesResult, reviewsResult] = await Promise.all([
       supabase
         .from('milestones')
-        .select(
-          'id, milestone_price, duration_days, free_revisions, title, description, status, revision_rate, used_revisions'
-        )
+        .select('id, milestone_price, duration_days, free_revisions, title, description, status, revision_rate, used_revisions')
         .eq('project_id', project.id)
         .order('created_at', { ascending: true }),
 
@@ -80,7 +94,7 @@ export async function GET(request: Request) {
         .eq('project_id', project.id),
     ]);
 
-    if (milestonesQuery.error || reviewsQuery.error) {
+    if (milestonesResult.error || reviewsResult.error) {
       return NextResponse.json(
         { error: 'Failed to fetch project data' },
         { status: 500 }
@@ -89,13 +103,13 @@ export async function GET(request: Request) {
 
     // Map reviews to milestones
     const reviewsByMilestone = new Map<string, Review[]>();
-    for (const review of reviewsQuery.data ?? []) {
+    for (const review of reviewsResult.data ?? []) {
       const existing = reviewsByMilestone.get(review.milestone_id) ?? [];
       reviewsByMilestone.set(review.milestone_id, [...existing, review]);
     }
 
-    // Shape response
-    const response = {
+    // Shape response with proper type safety
+    const response: ProjectResponse = {
       id: project.id,
       name: project.name,
       type: project.type,
@@ -104,18 +118,9 @@ export async function GET(request: Request) {
       client_email: project.client_email,
       project_duration_days: project.project_duration_days,
       jwt_token: project.jwt_token,
-      milestones: (milestonesQuery.data ?? []).map((m: Milestone) => ({
-        milestone_id: m.id,
-        milestone_price: m.milestone_price,
-        duration_days: m.duration_days,
-        free_revisions: m.free_revisions,
-        title: m.title,
-        description: m.description ?? '',
-        status: m.status,
-        revision_rate: m.revision_rate ?? 0,
-        used_revisions: m.used_revisions,
-        reviews: reviewsByMilestone.get(m.id) ?? [],
-      })),
+      milestones: (milestonesResult.data ?? []).map((m: Milestone) => 
+        mapMilestoneToResponse(m, reviewsByMilestone.get(m.id) ?? [])
+      ),
     };
 
     return NextResponse.json(response, {
@@ -125,14 +130,12 @@ export async function GET(request: Request) {
         'Vercel-CDN-Cache-Control': 'no-store',
       },
     });
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Internal server error';
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
     return NextResponse.json(
       {
         error: message,
-        ...(process.env.NODE_ENV === 'development' &&
-          error instanceof Error && { stack: error.stack }),
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { stack: error.stack }),
       },
       { status: 500 }
     );

@@ -135,7 +135,6 @@ export default function ProjectOverview({ project, projectStats }: ProjectOvervi
             </Avatar>
             <div>
               <div className="font-bold text-lg text-gray-900">{project.client_name || "Unknown Client"}</div>
-              <div className="text-sm text-gray-600">{project.client_company || "No company"}</div>
             </div>
           </div>
 
@@ -144,18 +143,6 @@ export default function ProjectOverview({ project, projectStats }: ProjectOvervi
               <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                 <Mail className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 <span className="text-sm text-gray-700 truncate">{project.client_email}</span>
-              </div>
-            )}
-            {project.client_phone && project.client_phone !== "N/A" && (
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                <Phone className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                <span className="text-sm text-gray-700">{project.client_phone}</span>
-              </div>
-            )}
-            {project.client_company && project.client_company !== "N/A" && (
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                <Building className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                <span className="text-sm text-gray-700 truncate">{project.client_company}</span>
               </div>
             )}
           </div>

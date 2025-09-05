@@ -33,7 +33,6 @@ import type { Project, Milestone, Review } from "@/types/api-projectDetails"
 import { 
   useHandleMilestoneSuccess, 
   startMilestone, 
-  useHandleSubmitMilestone, 
   useStatusColor 
 } from "./project_tabs_files/supportive_functions"
 

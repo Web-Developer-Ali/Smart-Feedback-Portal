@@ -1,27 +1,20 @@
-// app/api/milestones/update/route.ts
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { updateMilestoneSchema } from "@/lib/validations/create_project";
+import { MilestoneWithProject, UpdateData } from "@/types/api-projectDetails";
 
-// Validation schema for updating a milestone - all fields optional
-const updateMilestoneSchema = z.object({
-  id: z.string().uuid(),
-  title: z.string().min(1).optional().nullable(),
-  description: z.string().optional().nullable(),
-  duration_days: z.number().int().positive().optional().nullable(),
-  milestone_price: z.number().positive().optional().nullable(),
-  free_revisions: z.number().int().nonnegative().optional().nullable(),
-  revision_rate: z.number().nonnegative().optional().nullable(),
-  status: z.enum(["not_started", "in_progress", "completed", "revision"]).optional().nullable(),
-});
+// Helper function to convert null to undefined for specific fields
+const nullToUndefined = <T>(value: T | null | undefined): T | undefined => {
+  return value === null ? undefined : value;
+};
 
 export async function PUT(request: Request) {
-  let originalMilestone: any = null;
+  let originalMilestone: MilestoneWithProject | null = null;
+  const supabase = createClient();
   
   try {
-    const supabase = createClient();
-    
     // Parse request body and verify user session in parallel
     const [requestData, authResult] = await Promise.allSettled([
       request.json(),
@@ -37,7 +30,7 @@ export async function PUT(request: Request) {
     }
 
     // Handle authentication
-    if (authResult.status === 'rejected' || !authResult.value.data.user) {
+    if (authResult.status === 'rejected' || !authResult.value.data?.user) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
@@ -73,14 +66,14 @@ export async function PUT(request: Request) {
       .eq("id", validated.data.id)
       .single();
 
-    if (milestoneError) {
+    if (milestoneError || !milestone) {
       return NextResponse.json(
         { error: "Milestone not found" },
         { status: 404 }
       );
     }
 
-    originalMilestone = milestone;
+    originalMilestone = milestone as MilestoneWithProject;
 
     // Check authorization
     if (milestone.project.agency_id !== user.id) {
@@ -91,25 +84,30 @@ export async function PUT(request: Request) {
     }
 
     // Prepare update data - only include fields that are provided and changed
-    const updateData: any = {
+    const updateData: UpdateData = {
       updated_at: new Date().toISOString(),
     };
 
     // Only update fields that are provided AND different from current values
+    // Convert null to undefined for fields that shouldn't accept null
     if (validated.data.title !== undefined && validated.data.title !== milestone.title) {
-      updateData.title = validated.data.title;
+      updateData.title = nullToUndefined(validated.data.title);
     }
+    
     if (validated.data.description !== undefined && validated.data.description !== milestone.description) {
       updateData.description = validated.data.description;
     }
+    
     if (validated.data.free_revisions !== undefined && validated.data.free_revisions !== milestone.free_revisions) {
       updateData.free_revisions = validated.data.free_revisions;
     }
+    
     if (validated.data.revision_rate !== undefined && validated.data.revision_rate !== milestone.revision_rate) {
       updateData.revision_rate = validated.data.revision_rate;
     }
+    
     if (validated.data.status !== undefined && validated.data.status !== milestone.status) {
-      updateData.status = validated.data.status;
+      updateData.status = nullToUndefined(validated.data.status);
     }
 
     // Handle price and duration updates with validation
@@ -144,11 +142,11 @@ export async function PUT(request: Request) {
       // Calculate current totals excluding the milestone being updated
       const currentTotalPrice = allMilestones
         .filter(m => m.id !== validated.data.id)
-        .reduce((sum, m) => sum + (m.milestone_price || 0), 0);
+        .reduce((sum: number, m) => sum + (m.milestone_price || 0), 0);
 
       const currentTotalDuration = allMilestones
         .filter(m => m.id !== validated.data.id)
-        .reduce((sum, m) => sum + (m.duration_days || 0), 0);
+        .reduce((sum: number, m) => sum + (m.duration_days || 0), 0);
 
       // Check price constraint
       if (needsBudgetValidation) {
@@ -216,8 +214,8 @@ export async function PUT(request: Request) {
       throw new Error(`Milestone update failed: ${updateError.message}`);
     }
 
-    // Log activity and revalidate cache in parallel (non-blocking)
-    await Promise.allSettled([
+    // Execute activity logging and cache revalidation in parallel
+    const [activityResult] = await Promise.allSettled([
       // Log activity
       supabase
         .from("project_activities")
@@ -237,16 +235,29 @@ export async function PUT(request: Request) {
               status: milestone.status
             },
             new_values: updateData
-          }
-        })
+          },
+          created_at: new Date().toISOString()
+        }),
+      
+      // Revalidate cache (non-blocking)
+      (async () => {
+        try {
+          revalidatePath(`/dashboard/projects/${milestone.project_id}`);
+          revalidatePath("/dashboard/projects");
+        } catch (cacheError) {
+          console.error("Cache revalidation failed:", cacheError);
+        }
+      })()
     ]);
 
     return NextResponse.json({
       success: true,
       message: "Milestone updated successfully",
+      data: updatedMilestone,
+      activity_logged: activityResult.status === 'fulfilled'
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API Error:", error);
 
     if (error instanceof z.ZodError) {
@@ -256,11 +267,19 @@ export async function PUT(request: Request) {
       );
     }
 
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : "Internal server error";
+    
+    const errorStack = error instanceof Error 
+      ? error.stack 
+      : undefined;
+
     return NextResponse.json(
       {
-        error: error.message || "Internal server error",
+        error: errorMessage,
         ...(process.env.NODE_ENV === "development" && { 
-          stack: error.stack,
+          stack: errorStack,
           ...(originalMilestone && { milestone_name: originalMilestone.title })
         }),
       },

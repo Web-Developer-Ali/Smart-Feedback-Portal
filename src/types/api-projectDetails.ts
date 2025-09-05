@@ -101,3 +101,19 @@ export interface updatedMilestone{
   revision_rate: number
   used_revisions: number
 }
+
+export interface MilestoneWithProject extends Milestone {
+  project: Project;
+  title: string;
+}
+
+export interface UpdateData {
+  updated_at: string;
+  title?: string;
+  description?: string | null;
+  duration_days?: number | null;
+  milestone_price?: number | null;
+  free_revisions?: number | null;
+  revision_rate?: number | null;
+  status?: string;
+}

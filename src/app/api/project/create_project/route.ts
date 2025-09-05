@@ -6,10 +6,9 @@ import { generateProjectToken } from "@/lib/utils/tokens";
 
 export async function POST(request: Request) {
   let projectId: string | null = null;
+  const supabase = createClient(); // Moved outside try block for rollback access
   
-  try {
-    const supabase = createClient();
-    
+  try {    
     // Parse and validate input in parallel with auth check
     const [requestData, authResult] = await Promise.allSettled([
       request.json(),
@@ -25,7 +24,7 @@ export async function POST(request: Request) {
     }
 
     // Handle authentication error
-    if (authResult.status === 'rejected' || !authResult.value.data.user) {
+    if (authResult.status === 'rejected' || !authResult.value.data?.user) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
@@ -47,7 +46,7 @@ export async function POST(request: Request) {
 
     const { data } = validated;
 
-    // Generate JWT token (non-blocking if possible, but we need it for the project)
+    // Generate JWT token
     const jwtToken = await generateProjectToken({
       clientName: data.client_name,
       clientEmail: data.client_email,
@@ -107,7 +106,7 @@ export async function POST(request: Request) {
       throw new Error(`Milestones creation failed: ${milestonesError.message}`);
     }
 
-    // Create project activity log (non-blocking)
+    // Create project activity log (non-blocking with error handling)
     const activityPromise = supabase
       .from("project_activities")
       .insert({
@@ -124,11 +123,16 @@ export async function POST(request: Request) {
         },
         created_at: new Date().toISOString(),
       })
+      .then(({ error }) => {
+        if (error) {
+          console.error("Activity log failed:", error);
+        }
+      });
 
     // Wait for non-critical operations to complete (with timeout)
     await Promise.race([
-      Promise.allSettled([activityPromise]),
-      new Promise(resolve => setTimeout(resolve, 3000)) // 3s timeout for non-critical ops
+      activityPromise,
+      new Promise(resolve => setTimeout(resolve, 3000)) // 3s timeout
     ]);
 
     return NextResponse.json({
@@ -143,7 +147,7 @@ export async function POST(request: Request) {
     // Rollback project creation if milestones failed
     if (projectId) {
       try {
-        await createClient().from("project").delete().eq("id", projectId);
+        await supabase.from("project").delete().eq("id", projectId);
         console.log("Project rollback completed due to error");
       } catch (rollbackError) {
         console.error("Project rollback failed:", rollbackError);
@@ -160,7 +164,9 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: (error instanceof Error ? error.message : "Internal server error"),
-        ...(process.env.NODE_ENV === "development" && { stack: error instanceof Error ? error.stack : undefined }),
+        ...(process.env.NODE_ENV === "development" && { 
+          stack: error instanceof Error ? error.stack : undefined 
+        }),
       },
       { status: 500 }
     );

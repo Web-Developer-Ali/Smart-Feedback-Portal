@@ -31,3 +31,27 @@ export interface Review {
   created_at: string
   milestone_id?: string
 }
+
+export interface ProjectResponse {
+  id: string;
+  name: string;
+  type: string;
+  created_at: string;
+  client_name: string;
+  client_email: string;
+  project_duration_days: number | null;
+  jwt_token: string | null;
+  milestones: {
+    milestone_id: string;
+    milestone_price: number | null;
+    duration_days: number | null;
+    free_revisions: number | null;
+    title: string;
+    description: string;
+    status: string;
+    revision_rate: number;
+    used_revisions: number | null;
+    reviews: Review[];
+  }[];
+}
+

@@ -1,7 +1,9 @@
-// app/api/project/delete_milestone/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { SupabaseClient } from "@supabase/supabase-js";
+import { Project } from "@/types/api-projectDetails";
+import { Milestone } from "@/types/ProjectDetailPage";
 
 // Validation schema
 const deleteMilestoneSchema = z.object({
@@ -9,12 +11,44 @@ const deleteMilestoneSchema = z.object({
   projectId: z.string().uuid(),
 });
 
+interface MilestoneWithProject extends Milestone {
+  project: Project;
+}
+
+interface ProjectActivity {
+  project_id: string;
+  milestone_id: string;
+  activity_type: string;
+  description: string;
+  performed_by: string;
+  metadata: Record<string, any>;
+  created_at: string;
+}
+
+// Supabase types (you should generate these from your database)
+interface Database {
+  public: {
+    Tables: {
+      milestones: {
+        Row: Milestone;
+      };
+      project: {
+        Row: Project;
+      };
+      project_activities: {
+        Row: ProjectActivity;
+      };
+    };
+  };
+}
+
+type Supabase = SupabaseClient<Database>;
+
 export async function DELETE(request: Request) {
-  let milestoneDetails: any = null;
+  let milestoneDetails: MilestoneWithProject | null = null;
+  const supabase = createClient() as Supabase;
   
   try {
-    const supabase = createClient();
-    
     // Parse URL parameters
     const { searchParams } = new URL(request.url);
     const milestoneId = searchParams.get("milestoneId");
@@ -44,48 +78,43 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Verify user session and get milestone data in parallel
-    const [authResult, milestoneResult] = await Promise.allSettled([
-      supabase.auth.getUser(),
-      supabase
-        .from("milestones")
-        .select(`
-          *,
-          project:project_id (
-            id,
-            agency_id,
-            name,
-            status
-          )
-        `)
-        .eq("id", milestoneId)
-        .eq("project_id", projectId)
-        .single()
-    ]);
-
-    // Handle authentication
-    if (authResult.status === 'rejected' || !authResult.value.data.user) {
+    // Verify user session
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
       );
     }
 
-    const user = authResult.value.data.user;
+    // Get milestone data with project info
+    const { data: milestone, error: milestoneError } = await supabase
+      .from("milestones")
+      .select(`
+        *,
+        project:project_id (
+          id,
+          agency_id,
+          name,
+          status
+        )
+      `)
+      .eq("id", milestoneId)
+      .eq("project_id", projectId)
+      .single();
 
-    // Handle milestone fetch
-    if (milestoneResult.status === 'rejected') {
-      console.error("Milestone fetch error:", milestoneResult.reason);
+    if (milestoneError || !milestone) {
+      console.error("Milestone fetch error:", milestoneError);
       return NextResponse.json(
         { error: "Milestone not found or does not belong to the specified project" },
         { status: 404 }
       );
     }
 
-    const milestone = milestoneResult.value.data;
-    milestoneDetails = milestone;
+    milestoneDetails = milestone as MilestoneWithProject;
 
-    // Check authorization
+    // Check authorization - user must own the project
     if (milestone.project.agency_id !== user.id) {
       return NextResponse.json(
         { error: "Unauthorized access to milestone" },
@@ -93,19 +122,23 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Execute deletion and recalculation in parallel with activity logging
-    const [deleteResult, recalcResult, activityResult] = await Promise.allSettled([
-      // Delete the milestone
-      supabase
-        .from("milestones")
-        .delete()
-        .eq("id", milestoneId)
-        .eq("project_id", projectId),
+    // Delete the milestone
+    const { error: deleteError } = await supabase
+      .from("milestones")
+      .delete()
+      .eq("id", milestoneId)
+      .eq("project_id", projectId);
 
+    if (deleteError) {
+      throw new Error(`Milestone deletion failed: ${deleteError.message}`);
+    }
+
+    // Execute recalculation and activity logging in parallel
+    const [recalcResult, activityResult] = await Promise.allSettled([
       // Recalculate project totals
-      recalculateProjectTotals(projectId),
-
-      // Log activity (non-blocking)
+      recalculateProjectTotals(projectId, supabase),
+      
+      // Log activity
       supabase
         .from("project_activities")
         .insert({
@@ -119,14 +152,10 @@ export async function DELETE(request: Request) {
             milestone_price: milestone.milestone_price,
             duration_days: milestone.duration_days,
             status: milestone.status
-          }
-        })
+          },
+          created_at: new Date().toISOString()
+        } as ProjectActivity)
     ]);
-
-    // Check deletion result
-    if (deleteResult.status === 'rejected') {
-      throw new Error(`Milestone deletion failed: ${deleteResult.reason.message}`);
-    }
 
     // Update project status if this was the last milestone
     await updateProjectStatusIfNeeded(projectId, supabase);
@@ -139,14 +168,22 @@ export async function DELETE(request: Request) {
       activity_logged: activityResult.status === 'fulfilled'
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API Error:", error);
+
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : "Internal server error";
+    
+    const errorStack = error instanceof Error 
+      ? error.stack 
+      : undefined;
 
     return NextResponse.json(
       {
-        error: error.message || "Internal server error",
+        error: errorMessage,
         ...(process.env.NODE_ENV === "development" && { 
-          stack: error.stack,
+          stack: errorStack,
           ...(milestoneDetails && { milestone_name: milestoneDetails.title })
         }),
       },
@@ -156,9 +193,7 @@ export async function DELETE(request: Request) {
 }
 
 // Helper function to recalculate project totals
-async function recalculateProjectTotals(projectId: string) {
-  const supabase = createClient();
-  
+async function recalculateProjectTotals(projectId: string, supabase: Supabase) {
   try {
     const { data: milestones, error } = await supabase
       .from("milestones")
@@ -170,8 +205,8 @@ async function recalculateProjectTotals(projectId: string) {
       return null;
     }
 
-    const totalPrice = milestones.reduce((sum, m) => sum + (m.milestone_price || 0), 0);
-    const totalDuration = milestones.reduce((sum, m) => sum + (m.duration_days || 0), 0);
+    const totalPrice = milestones?.reduce((sum: number, m) => sum + (m.milestone_price || 0), 0) || 0;
+    const totalDuration = milestones?.reduce((sum: number, m) => sum + (m.duration_days || 0), 0) || 0;
 
     const { error: updateError } = await supabase
       .from("project")
@@ -195,14 +230,13 @@ async function recalculateProjectTotals(projectId: string) {
 }
 
 // Helper function to update project status if no milestones remain
-async function updateProjectStatusIfNeeded(projectId: string, supabase: any) {
+async function updateProjectStatusIfNeeded(projectId: string, supabase: Supabase) {
   try {
     // Check if any milestones remain
     const { data: remainingMilestones, error } = await supabase
       .from("milestones")
       .select("id")
-      .eq("project_id", projectId)
-      .limit(1);
+      .eq("project_id", projectId);
 
     if (error) {
       console.error("Error checking remaining milestones:", error);
@@ -211,13 +245,17 @@ async function updateProjectStatusIfNeeded(projectId: string, supabase: any) {
 
     // If no milestones remain, update project status to pending
     if (!remainingMilestones || remainingMilestones.length === 0) {
-      await supabase
+      const { error: updateError } = await supabase
         .from("project")
         .update({
           status: "pending",
           updated_at: new Date().toISOString()
         })
         .eq("id", projectId);
+
+      if (updateError) {
+        console.error("Error updating project status:", updateError);
+      }
     }
   } catch (error) {
     console.error("Error updating project status:", error);
