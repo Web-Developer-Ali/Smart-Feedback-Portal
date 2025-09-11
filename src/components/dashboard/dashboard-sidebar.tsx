@@ -68,13 +68,7 @@ export function DashboardSidebar({ user, onSignOut }: DashboardSidebarProps) {
       url: "/dashboard/analytics",
       icon: BarChart3,
       color: "text-orange-500",
-    },
-    {
-      title: "Clients",
-      url: "/dashboard/clients",
-      icon: Users,
-      color: "text-pink-500",
-    },
+    }
   ]
 
   const getRoleColor = (role: string) => {

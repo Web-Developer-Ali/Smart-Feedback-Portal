@@ -12,8 +12,8 @@ CREATE TABLE public.profiles (
   website text,
   location text,
   email_verified boolean DEFAULT false,
-  ADD COLUMN email_otp TEXT,
-  ADD COLUMN otp_expires_at TIMESTAMPTZ;
+  COLUMN email_otp TEXT,
+  COLUMN otp_expires_at TIMESTAMPTZ;
   is_active boolean DEFAULT true,
   auth_provider text, -- Stores the authentication provider (e.g., 'google', 'email')
   created_at timestamptz DEFAULT now() NOT NULL,

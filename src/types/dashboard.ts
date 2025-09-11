@@ -31,3 +31,61 @@ export interface ProjectsStatsProps {
   };
 }
 
+export interface Review {
+  id: string;
+  project_name: string;
+  client_name: string;
+  stars: number;
+  review: string;
+  created_at: string;
+  project_type: string;
+}
+
+export interface ReviewStats {
+  total: number;
+  averageRating: string;
+  fiveStars: number;
+  thisMonth: number;
+}
+
+export interface Pagination {
+  current_page: number;
+  total_pages: number;
+  total_reviews: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
+export interface ReviewsFiltersProps {
+  searchTerm: string;
+  ratingFilter: string;
+  typeFilter: string;
+  onSearchChange: (value: string) => void;
+  onRatingFilterChange: (value: string) => void;
+  onTypeFilterChange: (value: string) => void;
+  debounceDelay?: number;
+}
+
+export interface ReviewsResponse {
+  stats: ReviewStats;
+  reviews: Review[];
+  pagination: {
+    current_page: number;
+    total_pages: number;
+    total_reviews: number;
+    has_next: boolean;
+    has_prev: boolean;
+  };
+}
+export interface SupabaseReview {
+  id: string;
+  stars: number;
+  review: string;
+  created_at: string;
+  milestone_id: string | null;
+  project: {
+    name: string;
+    type: string;
+    client_name: string;
+  } | null;
+}

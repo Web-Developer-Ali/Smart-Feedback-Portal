@@ -366,10 +366,7 @@ export default function ProjectTabs({
                     <div className="flex items-start gap-4">
                       <Avatar className="h-14 w-14 bg-blue-100 border-2 border-blue-200">
                         <AvatarFallback className="bg-blue-100 text-blue-700 font-bold">
-                          {review.client_name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
+                          {review.client_name}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
