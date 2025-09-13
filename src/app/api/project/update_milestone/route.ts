@@ -5,36 +5,25 @@ import { revalidatePath } from "next/cache";
 import { updateMilestoneSchema } from "@/lib/validations/create_project";
 import { MilestoneWithProject, UpdateData } from "@/types/api-projectDetails";
 
-// Helper function to convert null to undefined for specific fields
-const nullToUndefined = <T>(value: T | null | undefined): T | undefined => {
-  return value === null ? undefined : value;
-};
+const nullToUndefined = <T>(value: T | null | undefined): T | undefined =>
+  value === null ? undefined : value;
 
 export async function PUT(request: Request) {
   let originalMilestone: MilestoneWithProject | null = null;
   const supabase = createClient();
-  
+
   try {
-    // Parse request body and verify user session in parallel
     const [requestData, authResult] = await Promise.allSettled([
       request.json(),
-      supabase.auth.getUser()
+      supabase.auth.getUser(),
     ]);
 
-    // Handle request parsing error
-    if (requestData.status === 'rejected') {
-      return NextResponse.json(
-        { error: "Invalid JSON payload" },
-        { status: 400 }
-      );
+    if (requestData.status === "rejected") {
+      return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
     }
 
-    // Handle authentication
-    if (authResult.status === 'rejected' || !authResult.value.data?.user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+    if (authResult.status === "rejected" || !authResult.value.data?.user) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
     const user = authResult.value.data.user;
@@ -42,18 +31,15 @@ export async function PUT(request: Request) {
 
     if (!validated.success) {
       return NextResponse.json(
-        { 
-          error: "Validation failed", 
-          details: validated.error.flatten() 
-        },
+        { error: "Validation failed", details: validated.error.flatten() },
         { status: 422 }
       );
     }
 
-    // Get the current milestone and its project details
     const { data: milestone, error: milestoneError } = await supabase
       .from("milestones")
-      .select(`
+      .select(
+        `
         *,
         project:project_id (
           id,
@@ -62,20 +48,27 @@ export async function PUT(request: Request) {
           agency_id,
           name
         )
-      `)
+      `
+      )
       .eq("id", validated.data.id)
       .single();
 
     if (milestoneError || !milestone) {
-      return NextResponse.json(
-        { error: "Milestone not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Milestone not found" }, { status: 404 });
     }
 
     originalMilestone = milestone as MilestoneWithProject;
 
-    // Check authorization
+    if (milestone.status !== "not_started") {
+      return NextResponse.json(
+        {
+          error: "Milestone cannot be updated once started",
+          current_status: milestone.status,
+        },
+        { status: 403 }
+      );
+    }
+
     if (milestone.project.agency_id !== user.id) {
       return NextResponse.json(
         { error: "Unauthorized access to milestone" },
@@ -83,34 +76,24 @@ export async function PUT(request: Request) {
       );
     }
 
-    // Prepare update data - only include fields that are provided and changed
-    const updateData: UpdateData = {
-      updated_at: new Date().toISOString(),
-    };
+    const updateData: UpdateData = { updated_at: new Date().toISOString() };
 
-    // Only update fields that are provided AND different from current values
-    // Convert null to undefined for fields that shouldn't accept null
     if (validated.data.title !== undefined && validated.data.title !== milestone.title) {
       updateData.title = nullToUndefined(validated.data.title);
     }
-    
     if (validated.data.description !== undefined && validated.data.description !== milestone.description) {
       updateData.description = validated.data.description;
     }
-    
     if (validated.data.free_revisions !== undefined && validated.data.free_revisions !== milestone.free_revisions) {
       updateData.free_revisions = validated.data.free_revisions;
     }
-    
     if (validated.data.revision_rate !== undefined && validated.data.revision_rate !== milestone.revision_rate) {
       updateData.revision_rate = validated.data.revision_rate;
     }
-    
     if (validated.data.status !== undefined && validated.data.status !== milestone.status) {
       updateData.status = nullToUndefined(validated.data.status);
     }
 
-    // Handle price and duration updates with validation
     let needsBudgetValidation = false;
     let needsDurationValidation = false;
 
@@ -124,68 +107,46 @@ export async function PUT(request: Request) {
       needsDurationValidation = true;
     }
 
-    // Validate budget and duration constraints if needed
     if (needsBudgetValidation || needsDurationValidation) {
-      // Get all milestones for the project to calculate totals
       const { data: allMilestones, error: milestonesError } = await supabase
         .from("milestones")
         .select("id, milestone_price, duration_days")
         .eq("project_id", milestone.project_id);
 
       if (milestonesError) {
-        return NextResponse.json(
-          { error: "Failed to fetch project milestones" },
-          { status: 500 }
-        );
+        return NextResponse.json({ error: "Failed to fetch project milestones" }, { status: 500 });
       }
 
-      // Calculate current totals excluding the milestone being updated
       const currentTotalPrice = allMilestones
-        .filter(m => m.id !== validated.data.id)
+        .filter((m) => m.id !== validated.data.id)
         .reduce((sum: number, m) => sum + (m.milestone_price || 0), 0);
 
       const currentTotalDuration = allMilestones
-        .filter(m => m.id !== validated.data.id)
+        .filter((m) => m.id !== validated.data.id)
         .reduce((sum: number, m) => sum + (m.duration_days || 0), 0);
 
-      // Check price constraint
       if (needsBudgetValidation) {
         const newPrice = validated.data.milestone_price ?? 0;
         const newTotalPrice = currentTotalPrice + newPrice;
-        
+
         if (newTotalPrice > milestone.project.project_price) {
           return NextResponse.json(
-            { 
+            {
               error: "Milestone price update would exceed project budget",
-              details: {
-                current_project_budget: milestone.project.project_price,
-                proposed_total: newTotalPrice,
-                available_budget: milestone.project.project_price - currentTotalPrice,
-                current_milestone_price: milestone.milestone_price,
-                new_milestone_price: newPrice
-              }
             },
             { status: 422 }
           );
         }
       }
 
-      // Check duration constraint
       if (needsDurationValidation) {
         const newDuration = validated.data.duration_days ?? 0;
         const newTotalDuration = currentTotalDuration + newDuration;
-        
+
         if (newTotalDuration > milestone.project.project_duration_days) {
           return NextResponse.json(
-            { 
+            {
               error: "Milestone duration update would exceed project timeline",
-              details: {
-                current_project_duration: milestone.project.project_duration_days,
-                proposed_total_days: newTotalDuration,
-                available_days: milestone.project.project_duration_days - currentTotalDuration,
-                current_milestone_duration: milestone.duration_days,
-                new_milestone_duration: newDuration
-              }
             },
             { status: 422 }
           );
@@ -193,97 +154,41 @@ export async function PUT(request: Request) {
       }
     }
 
-    // If no fields are being updated, return early
-    if (Object.keys(updateData).length === 1) { // Only updated_at
+    if (Object.keys(updateData).length === 1) {
       return NextResponse.json({
         success: true,
         message: "No changes detected",
-        milestone: milestone,
       });
     }
 
-    // Update the milestone with only the changed fields
-    const { data: updatedMilestone, error: updateError } = await supabase
+    const { error: updateError } = await supabase
       .from("milestones")
       .update(updateData)
-      .eq("id", validated.data.id)
-      .select()
-      .single();
+      .eq("id", validated.data.id);
 
     if (updateError) {
       throw new Error(`Milestone update failed: ${updateError.message}`);
     }
 
-    // Execute activity logging and cache revalidation in parallel
-    const [activityResult] = await Promise.allSettled([
-      // Log activity
-      supabase
-        .from("project_activities")
-        .insert({
-          project_id: milestone.project_id,
-          milestone_id: validated.data.id,
-          activity_type: "milestone_updated",
-          description: `Milestone "${milestone.title}" updated`,
-          performed_by: user.id,
-          metadata: {
-            updated_fields: Object.keys(updateData).filter(key => key !== 'updated_at'),
-            previous_values: {
-              title: milestone.title,
-              description: milestone.description,
-              milestone_price: milestone.milestone_price,
-              duration_days: milestone.duration_days,
-              status: milestone.status
-            },
-            new_values: updateData
-          },
-          created_at: new Date().toISOString()
-        }),
-      
-      // Revalidate cache (non-blocking)
-      (async () => {
-        try {
-          revalidatePath(`/dashboard/projects/${milestone.project_id}`);
-          revalidatePath("/dashboard/projects");
-        } catch (cacheError) {
-          console.error("Cache revalidation failed:", cacheError);
-        }
-      })()
-    ]);
+    try {
+      revalidatePath(`/dashboard/projects/${milestone.project_id}`);
+      revalidatePath("/dashboard/projects");
+    } catch (cacheError) {
+      console.error("Cache revalidation failed:", cacheError);
+    }
 
     return NextResponse.json({
       success: true,
       message: "Milestone updated successfully",
-      data: updatedMilestone,
-      activity_logged: activityResult.status === 'fulfilled'
     });
-
   } catch (error: unknown) {
     console.error("API Error:", error);
 
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Validation error", details: error.flatten() },
-        { status: 422 }
-      );
+      return NextResponse.json({ error: "Validation error", details: error.flatten() }, { status: 422 });
     }
 
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : "Internal server error";
-    
-    const errorStack = error instanceof Error 
-      ? error.stack 
-      : undefined;
-
-    return NextResponse.json(
-      {
-        error: errorMessage,
-        ...(process.env.NODE_ENV === "development" && { 
-          stack: errorStack,
-          ...(originalMilestone && { milestone_name: originalMilestone.title })
-        }),
-      },
-      { status: 500 }
-    );
+    const errorMessage = error instanceof Error ? error.message : "Internal server error";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

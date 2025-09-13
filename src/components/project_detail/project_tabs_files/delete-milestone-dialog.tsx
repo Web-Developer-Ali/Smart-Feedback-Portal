@@ -65,7 +65,7 @@ export default function DeleteMilestoneDialog({
 
       if (axios.isAxiosError(error)) {
         const errorMessage =
-          error.response?.data?.error || "Failed to delete milestone";
+          error.response?.data?.message || "Failed to delete milestone";
         toast.error(errorMessage);
       } else {
         toast.error(
