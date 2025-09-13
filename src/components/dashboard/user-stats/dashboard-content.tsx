@@ -3,31 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Briefcase, MessageSquare, Star, TrendingUp, AlertCircle } from "lucide-react"
-
-interface UserStats {
-  total_projects: number
-  total_reviews: number
-  avg_rating: number
-  growth_this_month: number
-  recent_projects: {
-    id: string
-    name: string
-    created_at: string
-    status: string
-    type: string
-    price: number
-    duration: number
-    total_reviews: number
-    avg_rating: number
-  }[]
-}
-
-interface DashboardContentProps {
-  userStats: UserStats | null
-  statsLoading: boolean
-  statsError: string | null
-  onRetryStats: () => void
-}
+import { DashboardContentProps } from "@/types/user-stats"
 
 export function DashboardContent({ userStats, statsLoading, statsError, onRetryStats }: DashboardContentProps) {
   const stats = {

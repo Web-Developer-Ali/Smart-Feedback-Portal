@@ -56,17 +56,6 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Mock user (replace with real auth later)
-  const mockUser = {
-    id: "1",
-    email: "user@example.com",
-    full_name: "John Doe",
-    avatar_url: null,
-    role: "agency" as const,
-    company_name: "Design Agency",
-    created_at: new Date().toISOString(),
-  }
-
   useEffect(() => {
     const fetchAnalytics = async () => {
       try {
@@ -75,7 +64,6 @@ export default function AnalyticsPage() {
 
         // Replace with your backend endpoint that calls get_agency_analytics
         const res = await axios.get(`/api/dashboard/analytics`)
-        console.log("API Response:", res.data)
         setAnalytics(res.data)
       } catch (err: any) {
         console.error("Failed to fetch analytics:", err)
@@ -88,15 +76,17 @@ export default function AnalyticsPage() {
     fetchAnalytics()
   }, [])
 
-  if (loading) {
+   if (loading) {
     return (
+      <SidebarProvider>
+        <DashboardSidebar />
+        <SidebarInset>
           <div className="flex flex-col justify-center items-center h-screen bg-background dark:bg-gray-900">
             <Loader2 className="h-12 w-12 animate-spin text-primary dark:text-gray-200 mb-4" />
-            <p className="text-muted-foreground dark:text-gray-400">
-              Loading your projects...
-            </p>
+            <p className="text-muted-foreground dark:text-gray-400">Loading your analytics...</p>
           </div>
-
+        </SidebarInset>
+      </SidebarProvider>
     )
   }
 
@@ -143,7 +133,7 @@ export default function AnalyticsPage() {
 
   return (
     <SidebarProvider>
-      <DashboardSidebar user={mockUser} onSignOut={() => {}} />
+      <DashboardSidebar />
       <SidebarInset>
         {/* Header */}
         <header className="flex h-16 shrink-0 items-center gap-2 border-b border-gray-200 px-4 bg-white text-black shadow-lg">

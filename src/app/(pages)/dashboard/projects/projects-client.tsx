@@ -78,7 +78,7 @@ export default function ProjectsClient() {
   if (loading) {
     return (
       <SidebarProvider>
-        <DashboardSidebar user={mockUser} onSignOut={() => {}} />
+        <DashboardSidebar />
         <SidebarInset>
           <div className="flex flex-col justify-center items-center h-screen bg-background dark:bg-gray-900">
             <Loader2 className="h-12 w-12 animate-spin text-primary dark:text-gray-200 mb-4" />
@@ -92,7 +92,7 @@ export default function ProjectsClient() {
   if (error) {
     return (
       <SidebarProvider>
-        <DashboardSidebar user={mockUser} onSignOut={() => {}} />
+        <DashboardSidebar />
         <SidebarInset>
           <section className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
             <div className="text-center">
@@ -114,7 +114,7 @@ export default function ProjectsClient() {
 
   return (
     <SidebarProvider>
-      <DashboardSidebar user={mockUser} onSignOut={() => {}} />
+      <DashboardSidebar />
       <SidebarInset>
         <div className="min-h-screen min-w-full bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
           <div className="container mx-auto p-4 sm:p-6">

@@ -1,59 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
-import { Users, Briefcase, ArrowRight, Loader2 } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { Users, Briefcase, ArrowRight } from "lucide-react"
 
 export default function HomePage() {
-  const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState(null)
-  const router = useRouter()
-  const supabase = createClient()
 
-  useEffect(() => {
-    const checkUser = async () => {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        if (user) {
-          // User is logged in, redirect to dashboard
-          router.push("/dashboard")
-          return
-        }
-
-        setUser(null)
-      } catch (error) {
-        console.error("Auth check error:", error)
-        setUser(null)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    checkUser()
-  }, [supabase, router])
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
-        <div className="flex items-center gap-2">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <span>Loading...</span>
-        </div>
-      </div>
-    )
-  }
-
-  // If user is logged in, this will redirect in useEffect
-  if (user) {
-    return null
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">

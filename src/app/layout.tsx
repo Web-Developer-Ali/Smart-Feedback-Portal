@@ -1,10 +1,9 @@
 import type React from "react";
 import type { Metadata, Viewport } from "next";
-import { Roboto } from "next/font/google";
-import { Source_Code_Pro } from "next/font/google";
 import { Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
+import { UserProvider } from "../components/user-provider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -216,8 +215,10 @@ html {
         `}</style>
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">
-        {children}
-        <Toaster />
+        <UserProvider>
+          {children}
+          <Toaster />
+        </UserProvider>
       </body>
     </html>
   );

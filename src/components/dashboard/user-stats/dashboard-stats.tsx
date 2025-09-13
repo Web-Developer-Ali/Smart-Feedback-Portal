@@ -1,16 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DashboardStatsProps } from "@/types/user-stats"
 import { Briefcase, MessageSquare, Star, TrendingUp, Target, Users, Award, Clock } from "lucide-react"
-
-interface DashboardStatsProps {
-  stats: {
-    totalProjects: number
-    totalReviews: number
-    averageRating: number
-    growthThisMonth: number
-    activeProjects: number
-  }
-  loading?: boolean
-}
 
 export function DashboardStats({ stats, loading }: DashboardStatsProps) {
   if (loading) {

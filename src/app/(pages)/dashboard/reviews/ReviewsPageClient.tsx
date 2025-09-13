@@ -96,20 +96,9 @@ export function ReviewsPageClient() {
       }
     };
   }, [page, ratingFilter, typeFilter, searchTerm]);
-
-  const mockUser = {
-    id: "1",
-    email: "user@example.com",
-    full_name: "John Doe",
-    avatar_url: null,
-    role: "agency" as const,
-    company_name: "Design Agency",
-    created_at: new Date().toISOString(),
-  };
-
   return (
     <SidebarProvider>
-      <DashboardSidebar user={mockUser} onSignOut={() => {}} />
+      <DashboardSidebar />
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 border-b border-gray-200 px-4 bg-white text-black shadow-lg">
           <SidebarTrigger className="-ml-1 text-black hover:bg-black/10" />
