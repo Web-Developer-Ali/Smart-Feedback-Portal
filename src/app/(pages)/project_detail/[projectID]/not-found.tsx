@@ -1,7 +1,7 @@
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { ArrowLeft, AlertTriangle } from "lucide-react"
-import Link from "next/link"
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { ArrowLeft, AlertTriangle } from "lucide-react";
+import Link from "next/link";
 
 export default function NotFound() {
   return (
@@ -12,10 +12,13 @@ export default function NotFound() {
             <AlertTriangle className="h-8 w-8 text-amber-600" />
           </div>
 
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Project Not Found</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Project Not Found
+          </h1>
 
           <p className="text-gray-600 mb-6 leading-relaxed">
-            The project you're looking for doesn't exist or you don't have permission to view it.
+            The project you&apos;re looking for doesn&apos;t exist or you
+            don&apos;t have permission to view it.
           </p>
 
           <Link href="/dashboard/projects">
@@ -27,5 +30,5 @@ export default function NotFound() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

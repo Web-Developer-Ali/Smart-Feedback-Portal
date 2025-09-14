@@ -1,9 +1,8 @@
-// app/api/dashboard/analytics/route.ts
 import { z } from "zod";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-export async function GET(_req: Request) {
+export async function GET(_: Request) {
   try {
     const supabase = createClient();
     

@@ -63,18 +63,6 @@ export default function ProjectsClient() {
     completed: projects.filter((p) => p.status === "completed").length,
     pending: projects.filter((p) => p.status === "pending").length,
   }
-
-  // Mock user data
-  const mockUser = {
-    id: "1",
-    email: "user@example.com",
-    full_name: "John Doe",
-    avatar_url: null,
-    role: "agency" as const,
-    company_name: "Design Agency",
-    created_at: new Date().toISOString(),
-  }
-
   if (loading) {
     return (
       <SidebarProvider>

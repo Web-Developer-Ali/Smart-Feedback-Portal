@@ -56,7 +56,7 @@ export default function ProjectDetailClient() {
 
       // Transform the API data to match your UI
       const transformedProject = transformApiProject(apiProject)
-      const transformedMilestones = (apiProject.milestones || []).map((milestone, index) =>
+      const transformedMilestones = (apiProject.milestones || []).map((milestone) =>
         transformApiMilestone(milestone)
       )
       const transformedReviews = transformApiReviews(apiProject)

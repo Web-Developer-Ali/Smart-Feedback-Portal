@@ -36,9 +36,15 @@ export function DashboardClient() {
     try {
       const response = await axios.get("/api/dashboard/user-stats");
       setUserStats(response.data);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Failed to fetch user stats:", err);
-      setError(err.response?.data?.error || "Unable to load dashboard statistics. Please try again later.");
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.error || "Unable to load dashboard statistics. Please try again later.");
+      } else if (err instanceof Error) {
+        setError(err.message || "Unable to load dashboard statistics. Please try again later.");
+      } else {
+        setError("Unable to load dashboard statistics. Please try again later.");
+      }
     } finally {
       setLoading(false);
     }

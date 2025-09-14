@@ -65,7 +65,7 @@ export default function AnalyticsPage() {
         // Replace with your backend endpoint that calls get_agency_analytics
         const res = await axios.get(`/api/dashboard/analytics`)
         setAnalytics(res.data)
-      } catch (err: any) {
+      } catch (err) {
         console.error("Failed to fetch analytics:", err)
         setError("Unable to load analytics. Please try again later.")
       } finally {
