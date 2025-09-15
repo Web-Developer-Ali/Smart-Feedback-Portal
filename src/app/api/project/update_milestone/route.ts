@@ -3,13 +3,12 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { updateMilestoneSchema } from "@/lib/validations/create_project";
-import { MilestoneWithProject, UpdateData } from "@/types/api-projectDetails";
+import { UpdateData } from "@/types/api-projectDetails";
 
 const nullToUndefined = <T>(value: T | null | undefined): T | undefined =>
   value === null ? undefined : value;
 
 export async function PUT(request: Request) {
-  let originalMilestone: MilestoneWithProject | null = null;
   const supabase = createClient();
 
   try {
@@ -56,8 +55,6 @@ export async function PUT(request: Request) {
     if (milestoneError || !milestone) {
       return NextResponse.json({ error: "Milestone not found" }, { status: 404 });
     }
-
-    originalMilestone = milestone as MilestoneWithProject;
 
     if (milestone.status !== "not_started") {
       return NextResponse.json(

@@ -73,7 +73,7 @@ export const useHandleSubmitMilestone = (
         } else {
           throw new Error(response.data.error || "Failed to submit milestone")
         }
-      } catch (error: any) {
+      } catch (error) {
         console.error("Error submitting milestone:", error)
 
         let errorMessage = "Failed to submit milestone"
@@ -130,7 +130,7 @@ export const startMilestone = async (milestoneId: string, onRefreshProject?: () 
     } else {
       throw new Error(response.data.error || "Failed to start milestone")
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error starting milestone:", error)
 
     if (axios.isAxiosError(error)) {
@@ -142,7 +142,10 @@ export const startMilestone = async (milestoneId: string, onRefreshProject?: () 
 
       toast.error(errorMessage, { id: toastId })
     } else {
-      toast.error(error.message || "Failed to start milestone", { id: toastId })
+      toast.error(
+        error instanceof Error ? error.message : "Failed to start milestone",
+        { id: toastId }
+      )
     }
 
     throw error

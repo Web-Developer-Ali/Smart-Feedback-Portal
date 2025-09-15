@@ -33,6 +33,13 @@ import {
 import { z } from "zod"
 import { MilestonesStep } from "@/components/create-project/milestones-step"
 
+ interface HandleInputChange {
+    (field: string | number | symbol, value: unknown): void;
+  }
+
+   interface HandleMilestoneChange {
+    (index: number, field: keyof Milestone, value: unknown): void;
+  }
 const TOTAL_STEPS = 4
 
 export function CreateProjectPage() {
@@ -66,20 +73,9 @@ export function CreateProjectPage() {
   const budgetDifference = formData.project_budget ? Math.abs(totalMilestonePrice - formData.project_budget) : 0
   const isWithinBudget = formData.project_budget ? budgetDifference <= formData.project_budget * 0.1 : true
 
-  // Mock user data for sidebar
-  const mockUser = {
-    id: "1",
-    email: "user@example.com",
-    full_name: "John Doe",
-    avatar_url: null,
-    role: "agency" as const,
-    company_name: "Design Agency",
-    created_at: new Date().toISOString(),
-  }
-
   const progress = (currentStep / TOTAL_STEPS) * 100
 
-  const handleInputChange = useCallback((field: string | number | symbol, value: any) => {
+  const handleInputChange: HandleInputChange = useCallback((field, value) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -95,29 +91,32 @@ export function CreateProjectPage() {
     }
   }, [errors])
 
-  const handleMilestoneChange = useCallback((index: number, field: keyof Milestone, value: any) => {
-    setFormData((prev) => {
-      const updatedMilestones = [...(prev.milestones || [])]
-      updatedMilestones[index] = {
-        ...updatedMilestones[index],
-        [field]: value,
-      }
-      return {
-        ...prev,
-        milestones: updatedMilestones,
-      }
-    })
+  const handleMilestoneChange: HandleMilestoneChange = useCallback(
+    (index, field, value) => {
+      setFormData((prev) => {
+        const updatedMilestones = [...(prev.milestones || [])];
+        updatedMilestones[index] = {
+          ...updatedMilestones[index],
+          [field]: value,
+        };
+        return {
+          ...prev,
+          milestones: updatedMilestones,
+        };
+      });
 
-    // Clear milestone-specific errors
-    const errorKey = `milestones.${index}.${field}`
-    if (errors[errorKey]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev }
-        delete newErrors[errorKey]
-        return newErrors
-      })
-    }
-  }, [errors])
+      // Clear milestone-specific errors
+      const errorKey = `milestones.${index}.${field}`;
+      if (errors[errorKey]) {
+        setErrors((prev) => {
+          const newErrors = { ...prev };
+          delete newErrors[errorKey];
+          return newErrors;
+        });
+      }
+    },
+    [errors]
+  );
 
   const addMilestone = useCallback(() => {
     if (formData.milestones && formData.milestones.length >= 10) {
@@ -312,7 +311,7 @@ const handleSubmit = useCallback(async () => {
       />
 
       <SidebarProvider>
-        <DashboardSidebar user={mockUser} onSignOut={() => router.push("/login")} />
+        <DashboardSidebar/>
         <SidebarInset>
           {/* Header */}
           <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0 z-10">

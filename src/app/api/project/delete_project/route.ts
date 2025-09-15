@@ -1,4 +1,3 @@
-// app/api/project/delete/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
@@ -106,7 +105,7 @@ export async function DELETE(request: Request) {
         deletionMethod = 'manual';
         throw procedureError;
       }
-    } catch (procedureError) {
+    } catch {
       console.log('Stored procedure not available, using manual deletion');
       deletionResults = await deleteProjectManually(supabase, projectId);
     }

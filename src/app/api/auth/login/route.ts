@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   const startTime = Date.now();
-  let performanceMetrics: Record<string, number> = {};
+  const performanceMetrics: Record<string, number> = {};
 
   try {
     // 1. Parse input with validation

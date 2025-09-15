@@ -30,7 +30,6 @@ import {
   LogOut,
   User,
   Sparkles,
-  Loader2,
 } from "lucide-react";
 import { useUser } from "../user-provider";
 import { signOut } from "@/app/auth/actions";

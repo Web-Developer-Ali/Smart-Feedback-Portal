@@ -11,6 +11,12 @@ interface ProjectTokenPayload {
   exp?: number;
 }
 
+// Type guard for verified tokens
+interface VerifiedProjectTokenPayload extends ProjectTokenPayload {
+  projectId: string;
+  agencyId: string;
+}
+
 export async function generateProjectToken(
   payload: ProjectTokenPayload
 ): Promise<string> {
@@ -56,13 +62,13 @@ export async function verifyProjectToken(
   }
 }
 
-// Type guard for verified tokens
 export function isVerifiedProjectToken(
-  payload: any
-): payload is ProjectTokenPayload {
+  payload: unknown
+): payload is VerifiedProjectTokenPayload {
   return (
-    payload &&
-    typeof payload.projectId === 'string' &&
-    typeof payload.agencyId === 'string'
+    typeof payload === 'object' &&
+    payload !== null &&
+    typeof (payload as Record<string, unknown>).projectId === 'string' &&
+    typeof (payload as Record<string, unknown>).agencyId === 'string'
   );
 }

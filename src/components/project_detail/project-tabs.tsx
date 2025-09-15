@@ -60,8 +60,8 @@ export default function ProjectTabs({
   projectStats,
   onRefreshProject,
 }: ProjectTabsProps) {
-  const [submissionNotes, setSubmissionNotes] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // const [submissionNotes, setSubmissionNotes] = useState("");
+  // const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(
     null
   );
@@ -362,7 +362,7 @@ export default function ProjectTabs({
                         <Button
                           className="bg-blue-600 hover:bg-blue-700 shadow-md transition-all duration-200 hover:scale-105"
                           onClick={() => setSubmittingMilestone(milestone)}
-                          disabled={isSubmitting}
+                          // disabled={isSubmitting}
                         >
                           <Upload className="h-4 w-4 mr-2" />
                           Submit Milestone
@@ -476,8 +476,9 @@ export default function ProjectTabs({
                           </div>
                         </div>
                         <blockquote className="text-gray-700 leading-relaxed border-l-4 border-blue-400 pl-4 italic bg-gray-50 p-4 rounded-r-lg">
-                          "{review.review}"
+                          &quot;{review.review}&quot;
                         </blockquote>
+
                         {review.milestone_id && (
                           <Badge className="mt-4 bg-blue-100 text-blue-700 border-blue-200">
                             <Award className="h-3 w-3 mr-1" />
@@ -581,7 +582,7 @@ export default function ProjectTabs({
         milestone={submittingMilestone}
         open={!!submittingMilestone}
         onOpenChange={handleCloseSubmitDialog}
-        isSubmitting={isSubmitting}
+        isSubmitting={false}
       />
 
       {editingMilestone && (

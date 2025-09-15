@@ -20,7 +20,7 @@ export function AnalyticsCharts({ monthlyPerformance, projectTypes, ratingDistri
           </CardHeader>
           <CardContent>
             <div className="space-y-4" role="list" aria-label="Monthly performance data">
-              {monthlyPerformance.map((data, index) => (
+              {monthlyPerformance.map((data) => (
                 <div
                   key={data.month}
                   className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg"

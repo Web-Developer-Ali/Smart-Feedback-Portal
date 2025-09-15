@@ -10,10 +10,6 @@ const deleteMilestoneSchema = z.object({
   milestoneId: z.string().uuid()
 });
 
-interface MilestoneWithProject extends Milestone {
-  project: Project;
-}
-
 // Supabase types
 interface Database {
   public: {
@@ -31,7 +27,6 @@ interface Database {
 type Supabase = SupabaseClient<Database>;
 
 export async function DELETE(request: Request) {
-  let milestoneDetails: MilestoneWithProject | null = null;
   const supabase = createClient() as Supabase;
   
   try {
@@ -97,7 +92,6 @@ export async function DELETE(request: Request) {
       );
     }
 
-    milestoneDetails = milestone as MilestoneWithProject;
 
     // Check authorization - user must own the project
     if (milestone.project.agency_id !== user.id) {

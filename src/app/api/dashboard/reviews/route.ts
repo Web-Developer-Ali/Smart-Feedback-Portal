@@ -1,8 +1,7 @@
-// app/api/dashboard/reviews/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
-import { Review, ReviewsResponse, ReviewStats, SupabaseReview } from "@/types/dashboard";
+import { Review, ReviewsResponse } from "@/types/dashboard";
 
 // Query validation schema
 const querySchema = z.object({
@@ -13,7 +12,7 @@ const querySchema = z.object({
 });
 
 // Cache for statistics (5 minutes)
-const statsCache = new Map<string, { data: ReviewStats; timestamp: number }>();
+const statsCache = new Map<string, { data:unknown; timestamp: number }>();
 const STATS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 export async function GET(request: Request) {
@@ -51,44 +50,102 @@ export async function GET(request: Request) {
       );
     }
 
-    // Get review statistics (with caching)
-    const cacheKey = `stats-${user.id}`;
-    const cachedStats = statsCache.get(cacheKey);
-    
-    let stats: ReviewStats;
-    if (cachedStats && Date.now() - cachedStats.timestamp < STATS_CACHE_TTL) {
-      stats = cachedStats.data;
-    } else {
-      stats = await getReviewStats(supabase, user.id);
-      statsCache.set(cacheKey, { data: stats, timestamp: Date.now() });
+    // Get user's profile to ensure they're an agency
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile) {
+      return NextResponse.json(
+        { error: 'User profile not found' },
+        { status: 404 }
+      );
     }
 
+    if (!profile.id) {
+      return NextResponse.json(
+        { error: "User is not registered as an agency" },
+        { status: 403 }
+      );
+    }
+
+    // Use the user's ID as agency_id
+    const agencyId = user.id;
+
+    // Check cache first for stats-only requests
     if (statsOnly) {
-      return NextResponse.json({ stats });
+      const cacheKey = `stats-${agencyId}`;
+      const cachedStats = statsCache.get(cacheKey);
+      
+      if (cachedStats && Date.now() - cachedStats.timestamp < STATS_CACHE_TTL) {
+        return NextResponse.json({ stats: cachedStats.data });
+      }
     }
 
-    // Get detailed reviews with pagination and filtering
-    const { reviews, totalCount } = await getReviewDetails(
-      supabase, 
-      user.id, 
-      page, 
-      limit,
-      ratingFilter
-    );
+    // Parse rating filter
+    const ratingParam = ratingFilter && ratingFilter !== 'all' 
+      ? parseInt(ratingFilter) 
+      : null;
 
-    const totalPages = Math.ceil(totalCount / limit);
+    // Call the PostgreSQL function
+    const { data, error } = await supabase.rpc('get_agency_reviews', {
+      agency_id: agencyId,
+      rating_filter: ratingParam,
+      page_number: page,
+      page_size: limit
+    });
 
+    if (error) {
+      console.error('RPC error:', error);
+      return NextResponse.json(
+        { error: 'Failed to fetch reviews' },
+        { status: 500 }
+      );
+    }
+
+    if (!data) {
+      return NextResponse.json({
+        stats: { total: 0, averageRating: '0.0', fiveStars: 0, thisMonth: 0 },
+        reviews: [],
+        pagination: { current_page: 1, total_pages: 0, total_reviews: 0, has_next: false, has_prev: false }
+      });
+    }
+
+    // Transform dates in the response
+    const transformedReviews = data.reviews.map((review:Review) => ({
+      ...review,
+      created_at: new Date(review.created_at).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      })
+    }));
+
+    // Cache the stats for future requests
+    if (data.stats) {
+      const cacheKey = `stats-${agencyId}`;
+      statsCache.set(cacheKey, { data: data.stats, timestamp: Date.now() });
+    }
+
+    // Prepare the response
     const response: ReviewsResponse = {
-      stats,
-      reviews,
-      pagination: {
-        current_page: page,
-        total_pages: totalPages,
-        total_reviews: totalCount,
-        has_next: page < totalPages,
-        has_prev: page > 1,
-      },
+      stats: data.stats || { total: 0, averageRating: '0.0', fiveStars: 0, thisMonth: 0 },
+      reviews: transformedReviews,
+      pagination: data.pagination || { 
+        current_page: page, 
+        total_pages: 0, 
+        total_reviews: 0, 
+        has_next: false, 
+        has_prev: false 
+      }
     };
+
+    // Return only stats if requested
+    if (statsOnly) {
+      return NextResponse.json({ stats: response.stats });
+    }
 
     return NextResponse.json(response, {
       headers: {
@@ -105,135 +162,4 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
-
-// Get review statistics (optimized with single query)
-async function getReviewStats(supabase: ReturnType<typeof createClient>, userId: string): Promise<ReviewStats> {
-  // Get current month start and end dates
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
-
-  // Single optimized query for all statistics
-  const { data, error } = await supabase
-    .from('reviews')
-    .select(`
-      stars,
-      created_at,
-      project:project_id (
-        agency_id
-      )
-    `)
-    .eq('project.agency_id', userId);
-
-  if (error) {
-    console.error('Error fetching reviews for stats:', error);
-    throw new Error('Failed to fetch review statistics');
-  }
-
-  if (!data || data.length === 0) {
-    return {
-      total: 0,
-      averageRating: '0.0',
-      fiveStars: 0,
-      thisMonth: 0,
-    };
-  }
-
-  // Calculate statistics in a single pass
-  let totalStars = 0;
-  let fiveStars = 0;
-  let thisMonth = 0;
-
-  data.forEach((review: any) => {
-    totalStars += review.stars;
-    if (review.stars === 5) fiveStars++;
-    
-    const reviewDate = new Date(review.created_at);
-    if (reviewDate >= new Date(monthStart) && reviewDate <= new Date(monthEnd)) {
-      thisMonth++;
-    }
-  });
-
-  const total = data.length;
-  const averageRating = total > 0 ? (totalStars / total).toFixed(1) : '0.0';
-
-  return {
-    total,
-    averageRating,
-    fiveStars,
-    thisMonth,
-  };
-}
-
-// Get detailed reviews with pagination and filtering
-async function getReviewDetails(
-  supabase: ReturnType<typeof createClient>, 
-  userId: string, 
-  page: number, 
-  limit: number,
-  ratingFilter?: string | null
-): Promise<{ reviews: Review[]; totalCount: number }> {
-  const start = (page - 1) * limit;
-  const end = start + limit - 1;
-
-  // Build the query
-  let query = supabase
-    .from('reviews')
-    .select(`
-      id,
-      stars,
-      review,
-      created_at,
-      project:project_id (
-        name,
-        type,
-        client_name
-      )
-    `, { count: 'exact' })
-    .eq('project.agency_id', userId)
-    .order('created_at', { ascending: false });
-
-  // Apply rating filter only
-  if (ratingFilter && ratingFilter !== 'all') {
-    query = query.eq('stars', parseInt(ratingFilter));
-  }
-
-  // Execute the query
-  const { data, count, error } = await query.range(start, end);
-
-  if (error) {
-    console.error('Error fetching review details:', error);
-    throw new Error('Failed to fetch review details');
-  }
-
-  if (!data) {
-    return { reviews: [], totalCount: 0 };
-  }
-
-  // Transform the data
-  const reviewsData = data as unknown as SupabaseReview[];
-  const reviews = transformReviews(reviewsData);
-
-  return {
-    reviews,
-    totalCount: count || 0,
-  };
-}
-
-// Helper function to transform reviews data
-function transformReviews(reviewsData: SupabaseReview[]): Review[] {
-  return reviewsData.map(review => ({
-    id: review.id,
-    stars: review.stars,
-    review: review.review,
-    created_at: new Date(review.created_at).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    }),
-    client_name: review.project?.client_name || 'Unknown Client',
-    project_name: review.project?.name || 'Unknown Project',
-    project_type: review.project?.type || 'Unknown Type',
-  }));
 }

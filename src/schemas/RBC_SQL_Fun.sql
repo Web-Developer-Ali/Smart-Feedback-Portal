@@ -227,3 +227,105 @@ BEGIN
     RETURN result;
 END;
 $$ LANGUAGE plpgsql;
+
+
+
+
+
+-- end
+
+
+
+
+
+
+
+
+-- For dashboard/reviews: Get reviews for projects managed by the agency with filtering, sorting, and pagination
+CREATE OR REPLACE FUNCTION get_agency_reviews(
+  agency_id UUID,
+  rating_filter INTEGER DEFAULT NULL,
+  page_number INTEGER DEFAULT 1,
+  page_size INTEGER DEFAULT 10
+)
+RETURNS JSON AS $$
+DECLARE
+  result JSON;
+  total_count INTEGER;
+  filtered_count INTEGER;
+BEGIN
+  -- Get total count of all reviews for this agency
+  SELECT COUNT(*) INTO total_count
+  FROM reviews r
+  JOIN project p ON r.project_id = p.id
+  WHERE p.agency_id = get_agency_reviews.agency_id;
+  
+  -- Get filtered count if rating filter is applied
+  IF rating_filter IS NOT NULL THEN
+    SELECT COUNT(*) INTO filtered_count
+    FROM reviews r
+    JOIN project p ON r.project_id = p.id
+    WHERE p.agency_id = get_agency_reviews.agency_id AND r.stars = rating_filter;
+  ELSE
+    filtered_count := total_count;
+  END IF;
+  
+  -- Get paginated reviews
+  WITH agency_reviews AS (
+    SELECT 
+      r.id,
+      r.stars,
+      r.review,
+      r.created_at,
+      r.milestone_id,
+      p.name as project_name,
+      p.type as project_type,
+      p.client_name,
+      ROW_NUMBER() OVER (ORDER BY r.created_at DESC) as row_num
+    FROM reviews r
+    JOIN project p ON r.project_id = p.id
+    WHERE p.agency_id = get_agency_reviews.agency_id
+    AND (get_agency_reviews.rating_filter IS NULL OR r.stars = get_agency_reviews.rating_filter)
+  )
+  SELECT json_build_object(
+    'reviews', (
+      SELECT COALESCE(json_agg(json_build_object(
+        'id', ar.id,
+        'stars', ar.stars,
+        'review', ar.review,
+        'created_at', ar.created_at,
+        'milestone_id', ar.milestone_id,
+        'project_name', ar.project_name,
+        'project_type', ar.project_type,
+        'client_name', ar.client_name
+      )), '[]'::json)
+      FROM agency_reviews ar
+      WHERE ar.row_num BETWEEN (get_agency_reviews.page_number - 1) * get_agency_reviews.page_size + 1 
+      AND get_agency_reviews.page_number * get_agency_reviews.page_size
+    ),
+    'pagination', json_build_object(
+      'current_page', get_agency_reviews.page_number,
+      'total_pages', CASE WHEN get_agency_reviews.page_size > 0 THEN CEIL(filtered_count::FLOAT / get_agency_reviews.page_size) ELSE 1 END,
+      'total_reviews', filtered_count,
+      'has_next', get_agency_reviews.page_number * get_agency_reviews.page_size < filtered_count,
+      'has_prev', get_agency_reviews.page_number > 1
+    ),
+    'stats', (
+      SELECT json_build_object(
+        'total', total_count,
+        'averageRating', COALESCE(ROUND(AVG(r.stars)::NUMERIC, 1), 0),
+        'fiveStars', COUNT(*) FILTER (WHERE r.stars = 5),
+        'thisMonth', COUNT(*) FILTER (
+          WHERE r.created_at >= date_trunc('month', CURRENT_DATE)
+          AND r.created_at < date_trunc('month', CURRENT_DATE) + INTERVAL '1 month'
+        )
+      )
+      FROM reviews r
+      JOIN project p ON r.project_id = p.id
+      WHERE p.agency_id = get_agency_reviews.agency_id
+    )
+  ) INTO result;
+  
+  RETURN result;
+END;
+$$ LANGUAGE plpgsql;

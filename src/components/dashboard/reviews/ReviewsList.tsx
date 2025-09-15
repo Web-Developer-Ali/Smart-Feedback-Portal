@@ -13,13 +13,13 @@ interface ReviewsListProps {
   hasDataFetched: boolean;
 }
 
-export function ReviewsList({ 
-  reviews, 
-  pagination, 
-  loading, 
-  error, 
+export function ReviewsList({
+  reviews,
+  pagination,
+  loading,
+  error,
   onPageChange,
-  hasDataFetched 
+  hasDataFetched,
 }: ReviewsListProps) {
   const getAvatarColor = (name: string) => {
     const colors = [
@@ -69,9 +69,7 @@ export function ReviewsList({
           <h3 className="text-lg font-semibold text-gray-600 mb-2">
             No reviews found
           </h3>
-          <p className="text-gray-500">
-            Try adjusting your search or filters
-          </p>
+          <p className="text-gray-500">Try adjusting your search or filters</p>
         </CardContent>
       </Card>
     );
@@ -162,9 +160,7 @@ export function ReviewsList({
                             key={i}
                             className={`h-4 w-4 ${
                               i < review.stars
-                                ? `fill-current ${getRatingColor(
-                                    review.stars
-                                  )}`
+                                ? `fill-current ${getRatingColor(review.stars)}`
                                 : "text-gray-300"
                             }`}
                           />
@@ -181,7 +177,7 @@ export function ReviewsList({
                   </div>
 
                   <blockquote className="text-slate-700 text-base leading-relaxed mb-4 border-l-4 border-amber-400 pl-4 italic">
-                    "{review.review}"
+                    &quot;{review.review}&quot;
                   </blockquote>
 
                   <div className="flex items-center gap-1 text-sm text-slate-500 bg-slate-50 px-3 py-1 rounded-full w-fit">
@@ -199,7 +195,9 @@ export function ReviewsList({
         <div className="flex justify-center gap-4 mt-8">
           <button
             disabled={!pagination.has_prev || loading}
-            onClick={() => onPageChange(Math.max(1, pagination.current_page - 1))}
+            onClick={() =>
+              onPageChange(Math.max(1, pagination.current_page - 1))
+            }
             className="px-4 py-2 rounded-lg bg-gray-200 disabled:opacity-50 hover:bg-gray-300 transition-colors"
           >
             Previous

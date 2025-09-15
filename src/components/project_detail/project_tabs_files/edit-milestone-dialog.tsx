@@ -157,8 +157,7 @@ export default function EditMilestoneDialog({
 
     setIsLoading(true)
     try {
-      const result = await updateMilestone(milestone.id, projectId, formData)
-
+       await updateMilestone(milestone.id, projectId, formData)
       // Call the parent's onSuccess with the updated data
       if (onSuccess) {
         onSuccess(milestone.id, {

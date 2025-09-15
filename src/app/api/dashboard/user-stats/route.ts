@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-export async function GET(request: Request) {
+export async function GET() {
   const supabase = createClient();
   
   try {
@@ -55,7 +55,7 @@ export async function GET(request: Request) {
 
     // Format dates in the response
     if (data && data.recent_projects) {
-      data.recent_projects = data.recent_projects.map((project: any) => ({
+      data.recent_projects = data.recent_projects.map((project: { created_at: string | number | Date; }) => ({
         ...project,
         created_at: new Date(project.created_at).toLocaleDateString('en-US', {
           year: 'numeric',

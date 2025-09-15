@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/c
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
-import { Calendar, DollarSign, Clock, User, Mail, Phone, Building, Star, MessageSquare } from "lucide-react"
+import { Calendar, DollarSign, Clock, User, Mail, Star, MessageSquare } from "lucide-react"
 import type { Project } from "@/types/api-projectDetails"
 
 interface ProjectOverviewProps {

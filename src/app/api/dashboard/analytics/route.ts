@@ -2,7 +2,7 @@ import { z } from "zod";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-export async function GET(_: Request) {
+export async function GET() {
   try {
     const supabase = createClient();
     
