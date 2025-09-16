@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Star, Upload, X, Loader2, CheckCircle, MessageSquare } from "lucide-react"
+import { Star, Loader2, CheckCircle, MessageSquare } from "lucide-react"
 
 interface Project {
   id: string
@@ -26,7 +26,6 @@ export default function FeedbackForm() {
   const [submitted, setSubmitted] = useState(false)
   const [rating, setRating] = useState(0)
   const [hoveredRating, setHoveredRating] = useState(0)
-  const [files, setFiles] = useState<File[]>([])
 
   const params = useParams()
   const router = useRouter()
@@ -34,19 +33,8 @@ export default function FeedbackForm() {
 
   const loadProject = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .eq("feedback_link_id", params.id)
-        .single()
-
-      if (error || !data) {
-        toast.error("Invalid feedback link")
-        router.push("/")
-        return
-      }
-
-      setProject(data)
+      // Fetch project here if needed
+      // setProject(data)
     } catch (error) {
       console.error("Load project error:", error)
       toast.error("Failed to load project")
@@ -59,52 +47,6 @@ export default function FeedbackForm() {
   useEffect(() => {
     loadProject()
   }, [loadProject])
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(e.target.files || [])
-    const validFiles = selectedFiles.filter((file) => {
-      const isValidType = file.type.startsWith("image/") || file.type === "application/pdf"
-      const isValidSize = file.size <= 5 * 1024 * 1024 // 5MB
-      return isValidType && isValidSize
-    })
-
-    if (validFiles.length !== selectedFiles.length) {
-      toast.error("Some files were rejected. Only images and PDFs under 5MB are allowed.")
-    }
-
-    setFiles((prev) => [...prev, ...validFiles].slice(0, 5)) // Max 5 files
-  }
-
-  const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index))
-  }
-
-  const uploadFiles = async (feedbackId: string) => {
-    const uploadPromises = files.map(async (file) => {
-      const fileExt = file.name.split(".").pop()
-      const fileName = `${feedbackId}/${Date.now()}.${fileExt}`
-
-      const { error } = await supabase.storage.from("feedback-attachments").upload(fileName, file)
-
-      if (error) {
-        console.error("File upload error:", error)
-        return null
-      }
-
-      const { data: { publicUrl } } = supabase.storage.from("feedback-attachments").getPublicUrl(fileName)
-
-      return {
-        feedback_id: feedbackId,
-        file_name: file.name,
-        file_url: publicUrl,
-        file_type: file.type,
-        file_size: file.size,
-      }
-    })
-
-    const uploadResults = await Promise.all(uploadPromises)
-    return uploadResults.filter((result) => result !== null)
-  }
 
   const submitFeedback = async (formData: FormData) => {
     if (rating === 0) {
@@ -124,20 +66,12 @@ export default function FeedbackForm() {
         sentiment: rating >= 4 ? "positive" : rating >= 3 ? "neutral" : "negative",
       }
 
-      const { data: feedback, error } = await supabase
-        .from("feedback")
-        .insert(feedbackData)
-        .select()
-        .single()
+      const { error } = await supabase.from("feedback").insert(feedbackData)
 
       if (error) {
         toast.error("Failed to submit feedback")
         console.error("Submit feedback error:", error)
         return
-      }
-
-      if (files.length > 0) {
-        await uploadFiles(feedback.id)
       }
 
       setSubmitted(true)
@@ -242,48 +176,6 @@ export default function FeedbackForm() {
                   placeholder="Share your thoughts, suggestions, or any specific feedback..."
                   className="mt-2 min-h-[120px]"
                 />
-              </div>
-
-              {/* File Upload Section */}
-              <div>
-                <Label className="text-base font-medium mb-2 block">Attach files (optional)</Label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*,.pdf"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    id="file-upload"
-                  />
-                  <label htmlFor="file-upload" className="cursor-pointer">
-                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-600">
-                      Click to upload images or PDFs
-                      <br />
-                      <span className="text-xs text-gray-500">Max 5 files, 5MB each</span>
-                    </p>
-                  </label>
-                </div>
-
-                {files.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    {files.map((file, index) => (
-                      <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                        <span className="text-sm text-gray-700 truncate">{file.name}</span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeFile(index)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {/* Contact Information */}
