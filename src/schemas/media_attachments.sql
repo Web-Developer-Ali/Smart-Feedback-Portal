@@ -8,7 +8,7 @@ CREATE TABLE media_attachments (
 
   -- File metadata (optional arrays)
   public_ids TEXT[],
-  secure_urls TEXT[],
+  file_name TEXT[],
 
   -- Required submission notes
   submission_notes TEXT NOT NULL,
