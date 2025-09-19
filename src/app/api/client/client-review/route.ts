@@ -56,6 +56,10 @@ export async function GET(request: Request) {
       .eq("id", projectId)
       .single()
 
+if (!project) {
+  return NextResponse.json({ error: "Project not found" }, { status: 400 })
+}
+
     if (projectError) {
       console.error("❌ Project query error:", projectError.message)
       return NextResponse.json({ error: "Error fetching project" }, { status: 500 })
@@ -124,7 +128,6 @@ export async function GET(request: Request) {
     revisionRate: m.revision_rate,
   })),
 }
-
     return NextResponse.json(transformedProject)
   } catch (error) {
     console.error("💥 API Unexpected Error:", error)
@@ -135,13 +138,13 @@ export async function GET(request: Request) {
 
 function mapStatusToFrontend(
   status: string
-): "pending" | "approved" | "rejected" | "in_progress" {
+): "pending" | "submitted" | "approved" | "rejected" | "in_progress" | "Not Started" {
   const statusMap = {
-    submitted: "pending",
+    submitted: "submitted",
     approved: "approved",
     rejected: "rejected",
-    in_progress: "in_progress",
-    not_started: "in_progress",
+    in_progress: "pending",
+    not_started: "Not Started",
   } as const
   return statusMap[status as keyof typeof statusMap] || "in_progress"
 }

@@ -2,7 +2,7 @@ export interface Milestone {
   id: string
   title: string
   description: string
-  status: "pending" | "approved" | "rejected" | "in_progress"
+  status: "pending" |  "approved" | "rejected" | "submitted" | "Not Started"
   deliverables: string[]
   dueDate: string
   submittedDate?: string

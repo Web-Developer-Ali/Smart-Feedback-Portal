@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { useParams } from "next/navigation"
 import { RefreshCw, XCircle } from "lucide-react"
 import { toast } from "sonner"
+import axios, { AxiosError } from "axios"
+
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { PageHeader } from "@/components/client/client-review/page-header"
@@ -34,16 +36,17 @@ export default function ClientReviewPage() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`/api/client/client-review?projectId=${projectId}`)
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch project: ${response.status}`)
-      }
-
-      const data = await response.json()
+      const { data } = await axios.get(`/api/client/client-review`, {
+        params: { projectId },
+      })
       setProject(data)
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to fetch project"
+      const axiosError = err as AxiosError<{ error?: string }>
+      const errorMessage =
+        axiosError.response?.data?.error ||
+        axiosError.message ||
+        "Failed to fetch project"
+
       setError(errorMessage)
       toast.error(errorMessage)
     } finally {
@@ -56,29 +59,33 @@ export default function ClientReviewPage() {
     return project.milestones.every((milestone) => milestone.status === "approved")
   }, [project?.milestones])
 
-  const handleMilestoneAction = useCallback(
-    async (milestoneId: string, action: "approve" | "reject") => {
-      try {
-        const response = await fetch(`/api/milestones/${milestoneId}/${action}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: action === "reject" ? JSON.stringify({ revisionNotes: "Requested changes" }) : undefined,
+ const handleMilestoneAction = useCallback(
+  async (milestoneId: string, action: "approve" | "reject") => {
+    try {
+      if (action === "approve") {
+        await axios.post(`/api/client/approve_milestone`, { milestoneId } )
+      } else if (action === "reject") {
+        await axios.post(`/api/client/reject_milestone`, {
+          projectId, // comes from params
+          revisionNotes: "Requested changes",
         })
-
-        if (!response.ok) {
-          throw new Error(`Failed to ${action} milestone`)
-        }
-
-        toast.success(`Milestone ${action}d successfully`)
-
-        await fetchProject()
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : `Failed to ${action} milestone`
-        toast.error(errorMessage)
       }
-    },
-    [fetchProject],
-  )
+
+      toast.success(`Milestone ${action}d successfully`)
+      await fetchProject()
+    } catch (err) {
+      const axiosError = err as AxiosError<{ error?: string }>
+      const errorMessage =
+        axiosError.response?.data?.error ||
+        axiosError.message ||
+        `Failed to ${action} milestone`
+
+      toast.error(errorMessage)
+    }
+  },
+  [fetchProject, projectId],
+)
+
 
   useEffect(() => {
     fetchProject()
@@ -130,8 +137,9 @@ export default function ClientReviewPage() {
           <div className="space-y-6">
             <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-6">Project Milestones</h2>
 
-            {projectData.milestones.map((milestone) => (
+            {projectData.milestones.map((milestone , index) => (
               <MilestoneCard
+                index={index}
                 key={milestone.id}
                 milestone={milestone}
                 onMilestoneAction={handleMilestoneAction}
