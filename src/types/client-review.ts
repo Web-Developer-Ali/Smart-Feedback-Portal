@@ -3,7 +3,7 @@ export interface Milestone {
   title: string
   description: string
   status: "pending" |  "approved" | "rejected" | "submitted" | "Not Started"
-  deliverables: string[]
+  deliverables: Deliverable[]
   dueDate: string
   submittedDate?: string
   price: number
@@ -11,6 +11,12 @@ export interface Milestone {
   freeRevisions: number
   usedRevisions: number
   revisionRate: number
+}
+
+export interface Deliverable {
+  name: string;
+  url: string;
+  notes: string;
 }
 
 export interface Project {

@@ -7,7 +7,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
 const rejectMilestoneSchema = z.object({
   milestoneId: z.string().uuid(),
   projectId: z.string().uuid(),
-  revisionNotes: z.string().optional()
+  revisionNotes: z.string().min(1, "Revision notes are required for rejection").max(1000)
 });
 
 // Supabase types
@@ -15,10 +15,31 @@ interface Database {
   public: {
     Tables: {
       milestones: {
-        Row: any;
+        Row: {
+          id: string;
+          project_id: string;
+          status: string;
+          used_revisions: number;
+          free_revisions: number;
+          revision_rate: number;
+          milestone_price: number;
+        };
       };
       project: {
-        Row: any;
+        Row: {
+          id: string;
+          agency_id: string;
+          client_email: string;
+          project_price: number;
+        };
+      };
+      messages: {
+        Insert: {
+          type: 'rejection';
+          content: string;
+          project_id: string;
+          milestone_id: string;
+        };
       };
     };
   };
@@ -50,26 +71,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Verify user session
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
-
-    // Get milestone data with project info
+    // Get milestone data with pricing information
     const { data: milestone, error: milestoneError } = await supabase
       .from("milestones")
       .select(`
-        *,
-        project:project_id (
-          id,
-          agency_id,
-          client_email
-        )
+        id, 
+        project_id, 
+        status, 
+        used_revisions,
+        free_revisions,
+        revision_rate,
+        milestone_price
       `)
       .eq("id", milestoneId)
       .eq("project_id", projectId)
@@ -82,34 +94,50 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check authorization - user must be the client
-    if (milestone.project.client_email !== user.email) {
+    // Check if milestone is already rejected
+    if (milestone.status === 'rejected') {
       return NextResponse.json(
-        { error: "Unauthorized access to milestone" },
-        { status: 403 }
+        { error: "Milestone is already rejected" },
+        { status: 400 }
       );
     }
 
-    // Update milestone status to rejected and increment used revisions
-    const { data, error: updateError } = await supabase
-      .from("milestones")
-      .update({ 
-        status: 'rejected',
-        used_revisions: (milestone.used_revisions || 0) + 1,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", milestoneId)
-      .eq("project_id", projectId)
-      .select();
+    // Check if milestone is in a rejectable state
+    const validStatuses = 'submitted';
+    if (!validStatuses.includes(milestone.status)) {
+      return NextResponse.json(
+        { 
+          error: "Cannot reject milestone in current status",
+          currentStatus: milestone.status
+        },
+        { status: 400 }
+      );
+    }
 
-    if (updateError) {
-      throw new Error(`Milestone rejection failed: ${updateError.message}`);
+    // Use transaction to handle revision pricing logic
+    const { data: result, error: transactionError } = await supabase.rpc('reject_milestone_with_message', {
+      p_milestone_id: milestoneId,
+      p_project_id: projectId,
+      p_revision_notes: revisionNotes,
+      p_current_used_revisions: milestone.used_revisions || 0,
+      p_free_revisions: milestone.free_revisions || 0,
+      p_revision_rate: milestone.revision_rate || 0,
+      p_current_milestone_price: milestone.milestone_price || 0
+    });
+
+    if (transactionError) {
+      throw new Error(`Transaction failed: ${transactionError.message}`);
     }
 
     return NextResponse.json({
       success: true,
       message: "Milestone rejected successfully",
-      milestone: data[0]
+      data: {
+        hasFreeRevisions: result.has_free_revisions,
+        revisionCharge: result.revision_charge,
+        newMilestonePrice: result.new_milestone_price,
+        newProjectPrice: result.new_project_price
+      }
     });
 
   } catch (error: unknown) {

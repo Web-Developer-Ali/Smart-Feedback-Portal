@@ -15,7 +15,6 @@ import { HelpSection } from "@/components/client/client-review/help-section"
 import { Project } from "@/types/client-review"
 
 export default function ClientReviewPage() {
-  const [selectedMilestone, setSelectedMilestone] = useState<string | null>(null)
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -60,14 +59,15 @@ export default function ClientReviewPage() {
   }, [project?.milestones])
 
  const handleMilestoneAction = useCallback(
-  async (milestoneId: string, action: "approve" | "reject") => {
+  async (milestoneId: string, action: "approve" | "reject" , revisionNotes?: string) => {
     try {
       if (action === "approve") {
-        await axios.post(`/api/client/approve_milestone`, { milestoneId } )
+        await axios.post(`/api/client/approve_milestone?milestoneId=${milestoneId}`)
       } else if (action === "reject") {
         await axios.post(`/api/client/reject_milestone`, {
-          projectId, // comes from params
-          revisionNotes: "Requested changes",
+          projectId,
+          milestoneId,
+          revisionNotes,
         })
       }
 
@@ -172,7 +172,8 @@ export default function ClientReviewPage() {
           </div>
 
           <div className="max-w-md">
-            <HelpSection />
+            <HelpSection
+             projectId={projectData.id} />
           </div>
         </div>
       </div>

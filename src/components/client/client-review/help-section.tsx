@@ -1,7 +1,16 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useRouter } from "next/navigation";
 
-export function HelpSection() {
+interface HelpSectionProps {
+  projectId: string
+}
+
+
+
+export function HelpSection(projectId: HelpSectionProps) {
+  const router = useRouter();
+  console.log(projectId)
   return (
     <Card className="bg-white border border-gray-200 shadow-lg w-full max-w-full">
       <CardHeader className="pb-4">
@@ -14,6 +23,7 @@ export function HelpSection() {
           </p>
           <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
             <Button
+            onClick={() => router.push(`/client/client-communication?projectId=${projectId}?usecase=support`)}
               variant="outline"
               size="sm"
               className="flex-1 min-w-0 border-gray-300 text-gray-700 hover:bg-gray-50 bg-transparent transition-colors duration-200"
@@ -21,6 +31,7 @@ export function HelpSection() {
               Contact Support
             </Button>
             <Button
+             onClick={() => router.push(`/client/client-communication?projectId=${projectId}?usecase=contact-freelancer`)}
               variant="outline"
               size="sm"
               className="flex-1 min-w-0 border-gray-300 text-gray-700 hover:bg-gray-50 bg-transparent transition-colors duration-200"

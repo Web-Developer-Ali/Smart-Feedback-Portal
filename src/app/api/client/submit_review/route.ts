@@ -54,39 +54,6 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-
-    // Verify user session
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
-
-    // Get project info to verify authorization
-    const { data: project, error: projectError } = await supabase
-      .from("project")
-      .select("id, client_email")
-      .eq("id", projectId)
-      .single();
-
-    if (projectError || !project) {
-      return NextResponse.json(
-        { error: "Project not found" },
-        { status: 404 }
-      );
-    }
-
-    // Check authorization - user must be the client
-    if (project.client_email !== user.email) {
-      return NextResponse.json(
-        { error: "Unauthorized to submit review" },
-        { status: 403 }
-      );
-    }
-
     // Check if review already exists for this milestone
     const { data: existingReview, error: checkError } = await supabase
       .from("reviews")

@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   const milestoneId = searchParams.get('milestoneId');
     if (!milestoneId) {
       return NextResponse.json(
-        { error: "milestoneId query parameter is required" },
+        { error: "MilestoneId query parameter is required" },
         { status: 400 }
       );
     }

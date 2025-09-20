@@ -1,103 +1,145 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
-import { Star, Loader2, CheckCircle, MessageSquare } from "lucide-react"
+import { Star, Loader2, CheckCircle, MessageSquare, AlertCircle } from "lucide-react"
+import { z } from "zod"
 
-interface Project {
-  id: string
-  name: string
-  description: string | null
-  client_name: string | null
-  agency_id: string
-}
+// Zod validation schema - match the API expected format
+const feedbackSchema = z.object({
+  rating: z.number()
+    .min(1, "Please select a rating")
+    .max(5, "Rating must be between 1 and 5 stars"),
+  review: z.string()  // Changed from 'message' to 'review' to match API
+    .max(2000, "Review must be less than 100 characters")
+    .optional()
+    .or(z.literal("")),
+  milestoneId: z.string().uuid("Invalid milestone"),
+  projectId: z.string().uuid("Invalid project")
+})
+
+type FeedbackFormData = z.infer<typeof feedbackSchema>
 
 export default function FeedbackForm() {
-  const [project, setProject] = useState<Project | null>(null)
-  const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [rating, setRating] = useState(0)
   const [hoveredRating, setHoveredRating] = useState(0)
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+  const [formData, setFormData] = useState({
+    review: ""  // Changed from 'message' to 'review'
+  })
 
   const params = useParams()
   const router = useRouter()
-  const supabase = createClient()
+  const searchParams = useSearchParams()
 
-  const loadProject = useCallback(async () => {
+  const projectId = params.id as string
+  const milestoneId = searchParams.get("milestoneId")
+
+  const validateForm = (): boolean => {
     try {
-      // Fetch project here if needed
-      // setProject(data)
+      feedbackSchema.parse({
+        rating,
+        review: formData.review,  // Changed from message to review
+        milestoneId,
+        projectId
+      })
+      setValidationErrors({})
+      return true
     } catch (error) {
-      console.error("Load project error:", error)
-      toast.error("Failed to load project")
-      router.push("/")
-    } finally {
-      setLoading(false)
+      if (error instanceof z.ZodError) {
+        const errors: Record<string, string> = {}
+        error.errors.forEach((err) => {
+          if (err.path[0]) {
+            errors[err.path[0]] = err.message
+          }
+        })
+        setValidationErrors(errors)
+        
+        // Show the first error in toast
+        const firstError = error.errors[0]
+        if (firstError) {
+          toast.error(firstError.message)
+        }
+      }
+      return false
     }
-  }, [params.id, router, supabase])
+  }
 
-  useEffect(() => {
-    loadProject()
-  }, [loadProject])
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+    
+    // Clear validation error when user starts typing
+    if (validationErrors[name]) {
+      setValidationErrors(prev => ({ ...prev, [name]: "" }))
+    }
+  }
 
-  const submitFeedback = async (formData: FormData) => {
-    if (rating === 0) {
-      toast.error("Please select a rating")
+  const handleRatingChange = (newRating: number) => {
+    setRating(newRating)
+    
+    // Clear rating validation error when user selects a rating
+    if (validationErrors.rating) {
+      setValidationErrors(prev => ({ ...prev, rating: "" }))
+    }
+  }
+
+  const submitFeedback = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!validateForm()) {
       return
     }
 
     setSubmitting(true)
 
     try {
-      const feedbackData = {
-        project_id: project!.id,
+      const payload: FeedbackFormData = {
+        milestoneId: milestoneId!,
+        projectId,
+        review: formData.review,  // Changed from message to review
         rating,
-        message: formData.get("message") as string,
-        client_name: formData.get("client_name") as string,
-        client_email: formData.get("client_email") as string,
-        sentiment: rating >= 4 ? "positive" : rating >= 3 ? "neutral" : "negative",
       }
 
-      const { error } = await supabase.from("feedback").insert(feedbackData)
+      const res = await fetch("/api/client/submit_review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
 
-      if (error) {
-        toast.error("Failed to submit feedback")
-        console.error("Submit feedback error:", error)
-        return
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || data.details?.rating?.[0] || "Failed to submit review")
       }
 
       setSubmitted(true)
       toast.success("Thank you for your feedback!")
+      
+      // Redirect after a short delay to show success message
+      setTimeout(() => {
+        router.push(`/client/client-review/${projectId}`)
+      }, 2000)
+
     } catch (error) {
       console.error("Submit feedback error:", error)
-      toast.error("Failed to submit feedback")
+      const errorMessage = error instanceof Error ? error.message : "Something went wrong"
+      toast.error(errorMessage)
     } finally {
       setSubmitting(false)
     }
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
-        <div className="flex items-center gap-2">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <span>Loading feedback form...</span>
-        </div>
-      </div>
-    )
-  }
-
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex items-center justify-center p-4">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-purple-50">
         <Card className="w-full max-w-md shadow-xl border-0 bg-white/90 backdrop-blur-sm">
           <CardContent className="p-8 text-center">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -105,9 +147,25 @@ export default function FeedbackForm() {
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Thank You!</h2>
             <p className="text-gray-600 mb-6">Your feedback has been submitted successfully.</p>
-            <Button onClick={() => router.push("/")} className="w-full">
-              Close
-            </Button>
+            <div className="flex space-x-3">
+              <Button 
+                variant="outline" 
+                onClick={() => router.push(`/client/client-review/${projectId}`)}
+                className="flex-1"
+              >
+                Back to Project
+              </Button>
+              <Button 
+                onClick={() => {
+                  setSubmitted(false)
+                  setRating(0)
+                  setFormData({ review: "" })  // Changed from message to review
+                }}
+                className="flex-1"
+              >
+                Submit Another
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -115,48 +173,56 @@ export default function FeedbackForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4">
+    <div className="min-h-screen p-4 bg-gradient-to-br from-blue-50 to-purple-50">
       <div className="container mx-auto max-w-2xl py-8">
         <Card className="shadow-2xl border-0 bg-white/90 backdrop-blur-sm">
           <CardHeader className="text-center pb-6">
             <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
               <MessageSquare className="w-8 h-8 text-white" />
             </div>
-            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Share Your Feedback
-            </CardTitle>
+            <CardTitle className="text-3xl font-bold">Share Your Feedback</CardTitle>
             <CardDescription className="text-lg">
-              We&apos;d love to hear about your experience with <strong>{project?.name}</strong>
+              We&apos;d love to hear about your experience with this freelancer.
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-6">
-            <form action={submitFeedback} className="space-y-6">
+            <form onSubmit={submitFeedback} className="space-y-6">
               {/* Rating Section */}
               <div className="text-center">
-                <Label className="text-lg font-semibold mb-4 block">How would you rate your experience?</Label>
+                <Label className="text-lg font-semibold mb-4 block">
+                  How would you rate your experience?
+                  <span className="text-red-500 ml-1">*</span>
+                </Label>
                 <div className="flex justify-center gap-2 mb-2">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
                       key={star}
                       type="button"
-                      onClick={() => setRating(star)}
+                      onClick={() => handleRatingChange(star)}
                       onMouseEnter={() => setHoveredRating(star)}
                       onMouseLeave={() => setHoveredRating(0)}
-                      className="transition-transform hover:scale-110"
+                      className="transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-full"
+                      disabled={submitting}
                     >
                       <Star
                         className={`w-10 h-10 ${
                           star <= (hoveredRating || rating)
                             ? "text-yellow-500 fill-current"
                             : "text-gray-300 hover:text-yellow-400"
-                        }`}
+                        } ${submitting ? "opacity-50" : ""}`}
                       />
                     </button>
                   ))}
                 </div>
-                <p className="text-sm text-gray-500">
-                  {rating === 0 && "Click to rate"}
+                {validationErrors.rating && (
+                  <div className="flex items-center justify-center gap-1 text-red-500 text-sm mt-1">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{validationErrors.rating}</span>
+                  </div>
+                )}
+                <p className="text-sm text-gray-500 mt-2">
+                  {rating === 0 && "Click to rate (required)"}
                   {rating === 1 && "Poor"}
                   {rating === 2 && "Fair"}
                   {rating === 3 && "Good"}
@@ -167,54 +233,53 @@ export default function FeedbackForm() {
 
               {/* Message Section */}
               <div>
-                <Label htmlFor="message" className="text-base font-medium">
-                  Tell us more about your experience (optional)
-                </Label>
-                <Textarea
-                  id="message"
-                  name="message"
-                  placeholder="Share your thoughts, suggestions, or any specific feedback..."
-                  className="mt-2 min-h-[120px]"
+                <Label htmlFor="review">Tell us more (optional)</Label>
+                <Textarea 
+                  id="review" 
+                  name="review"  // Changed from message to review
+                  value={formData.review}  // Changed from message to review
+                  onChange={handleInputChange}
+                  className="mt-2 min-h-[120px] resize-none"
+                  placeholder="Share your thoughts about the work delivered..."
+                  disabled={submitting}
                 />
-              </div>
-
-              {/* Contact Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="client_name">Your Name (optional)</Label>
-                  <Input
-                    id="client_name"
-                    name="client_name"
-                    placeholder="John Doe"
-                    defaultValue={project?.client_name || ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="client_email">Your Email (optional)</Label>
-                  <Input
-                    id="client_email"
-                    name="client_email"
-                    type="email"
-                    placeholder="john@example.com"
-                  />
-                </div>
+                {validationErrors.review && (  // Changed from message to review
+                  <div className="flex items-center gap-1 text-red-500 text-sm mt-1">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{validationErrors.review}</span>  {/* Changed from message to review */}
+                  </div>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.review.length}/100 characters  {/* Changed from message to review */}
+                </p>
               </div>
 
               {/* Submit Button */}
-              <Button
-                type="submit"
-                disabled={submitting || rating === 0}
-                className="w-full h-12 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              <Button 
+                type="submit" 
+                disabled={submitting || rating === 0} 
+                className="w-full h-12 text-lg relative"
               >
                 {submitting ? (
                   <>
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                     Submitting...
+                    <div className="absolute inset-0 bg-white/20 rounded-md"></div>
                   </>
                 ) : (
                   "Submit Feedback"
                 )}
               </Button>
+
+              {/* Loading overlay */}
+              {submitting && (
+                <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
+                  <div className="bg-white p-6 rounded-lg shadow-xl flex items-center gap-3">
+                    <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                    <span className="text-gray-700">Submitting your feedback...</span>
+                  </div>
+                </div>
+              )}
             </form>
           </CardContent>
         </Card>
