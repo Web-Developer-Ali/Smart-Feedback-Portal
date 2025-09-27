@@ -1,5 +1,5 @@
-import { createTransport } from "nodemailer"
-import { createClient } from "@/lib/supabase/server"
+import { createTransport } from "nodemailer";
+import { query } from "@/lib/db"; // <-- our pg helper
 
 const transporter = createTransport({
   service: process.env.EMAIL_SERVICE,
@@ -7,39 +7,36 @@ const transporter = createTransport({
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_PASSWORD,
   },
-})
+});
 
 /**
  * Generates, stores, and emails a 6-digit OTP to the given user email.
- * Also stores the OTP and expiration timestamp in the `profiles` table.
+ * Stores the OTP + expiration timestamp in the `users` table.
  * 
  * @param email The user's email address
  * @returns { success: true } or throws error
  */
 export async function sendAndStoreOtp(email: string) {
-  const supabase = await createClient()
+  const otp = generateOTP();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min from now
 
-  const otp = generateOTP()
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000) // 10 min from now
-
-  // 1. Store OTP + expiry in profile table
-  const { error: updateError } = await supabase
-    .from("profiles")
-    .update({
-      email_otp: otp,
-      otp_expires_at: expiresAt.toISOString(),
-    })
-    .eq("email", email)
-
-  if (updateError) {
-    console.error("❌ Failed to store OTP:", updateError)
-    throw new Error("Failed to update OTP in database.")
+  // 1. Store OTP + expiry in DB
+  try {
+    await query(
+      `UPDATE users
+       SET email_otp = $1, otp_expires_at = $2
+       WHERE email = $3`,
+      [otp, expiresAt.toISOString(), email]
+    );
+  } catch (dbError) {
+    console.error("❌ Failed to store OTP:", dbError);
+    throw new Error("Failed to update OTP in database.");
   }
 
   // 2. Send OTP via Nodemailer
   try {
     await transporter.sendMail({
-      from: `"Smart Feedback Portal" ${process.env.GMAIL_USER}`,
+      from: `"Smart Feedback Portal" <${process.env.GMAIL_USER}>`,
       to: email,
       subject: "🔐 Your OTP Code",
       html: `
@@ -51,18 +48,18 @@ export async function sendAndStoreOtp(email: string) {
           <p>If you didn't request this, you can ignore this email.</p>
         </div>
       `,
-    })
+    });
   } catch (emailError) {
-    console.error("❌ Failed to send OTP email:", emailError)
-    throw new Error("Failed to send OTP email.")
+    console.error("❌ Failed to send OTP email:", emailError);
+    throw new Error("Failed to send OTP email.");
   }
 
-  return { success: true }
+  return { success: true };
 }
 
 /**
  * Generates a 6-digit numeric OTP
  */
 function generateOTP(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString()
+  return Math.floor(100000 + Math.random() * 900000).toString();
 }

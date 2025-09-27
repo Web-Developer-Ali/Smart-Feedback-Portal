@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/options";
+import { query } from "@/lib/db";
 import { z } from "zod";
 import { Review, ReviewsResponse } from "@/types/dashboard";
 
@@ -12,12 +14,10 @@ const querySchema = z.object({
 });
 
 // Cache for statistics (5 minutes)
-const statsCache = new Map<string, { data:unknown; timestamp: number }>();
+const statsCache = new Map<string, { data: unknown; timestamp: number }>();
 const STATS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 export async function GET(request: Request) {
-  const supabase = createClient();
-  
   try {
     const { searchParams } = new URL(request.url);
     const statsOnly = searchParams.get('statsOnly') === 'true';
@@ -40,39 +40,33 @@ export async function GET(request: Request) {
       );
     }
 
-    // Authenticate user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Authenticate user using NextAuth
+    const session = await getServerSession(authOptions);
 
-    if (authError || !user) {
+    if (!session?.user?.id) {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
       );
     }
 
-    // Get user's profile to ensure they're an agency
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', user.id)
-      .single();
+    const userId = session.user.id;
 
-    if (profileError || !profile) {
+    // Get user's profile to ensure they're an agency
+    const profileResult = await query(
+      'SELECT id, is_agency FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (!profileResult.rows.length) {
       return NextResponse.json(
         { error: 'User profile not found' },
         { status: 404 }
       );
     }
 
-    if (!profile.id) {
-      return NextResponse.json(
-        { error: "User is not registered as an agency" },
-        { status: 403 }
-      );
-    }
-
     // Use the user's ID as agency_id
-    const agencyId = user.id;
+    const agencyId = userId;
 
     // Check cache first for stats-only requests
     if (statsOnly) {
@@ -90,7 +84,7 @@ export async function GET(request: Request) {
       : null;
 
     // Call the PostgreSQL function
-    const { data, error } = await supabase.rpc('get_agency_reviews', {
+    const { data, error } = await callRpcFunction('get_agency_reviews', {
       agency_id: agencyId,
       rating_filter: ratingParam,
       page_number: page,
@@ -114,14 +108,14 @@ export async function GET(request: Request) {
     }
 
     // Transform dates in the response
-    const transformedReviews = data.reviews.map((review:Review) => ({
+    const transformedReviews = data.reviews?.map((review: Review) => ({
       ...review,
       created_at: new Date(review.created_at).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric'
       })
-    }));
+    })) || [];
 
     // Cache the stats for future requests
     if (data.stats) {
@@ -161,5 +155,44 @@ export async function GET(request: Request) {
       { error: message },
       { status: 500 }
     );
+  }
+}
+
+// Helper function to call PostgreSQL RPC functions with multiple parameters
+async function callRpcFunction(functionName: string, params: Record<string, any>) {
+  try {
+    // Build parameter placeholders and values array
+    const paramNames = Object.keys(params);
+    const paramValues = paramNames.map(key => params[key]);
+    const placeholders = paramNames.map((_, index) => `$${index + 1}`).join(', ');
+    
+    // For functions returning JSON, we need to handle the result structure
+    const result = await query(
+      `SELECT * FROM ${functionName}(${placeholders})`,
+      paramValues
+    );
+
+    // The result structure depends on how your function returns data
+    // If it returns a single JSON object, it will be in the first row
+    if (result.rows.length > 0) {
+      const functionResult = result.rows[0];
+      
+      // Handle different possible return structures
+      if (functionResult[functionName]) {
+        // If the function returns a named column
+        return { data: functionResult[functionName], error: null };
+      } else if (functionResult.json_build_object || functionResult.row_to_json) {
+        // If it returns a JSON object directly
+        return { data: functionResult, error: null };
+      } else {
+        // Return the entire first row
+        return { data: functionResult, error: null };
+      }
+    }
+    
+    return { data: null, error: null };
+  } catch (error) {
+    console.error('RPC call error:', error);
+    return { data: null, error };
   }
 }

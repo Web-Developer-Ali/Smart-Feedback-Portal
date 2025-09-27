@@ -141,14 +141,29 @@ export function validateFormStep(step: number, formData: Partial<ProjectFormData
 }
 
 
-// Schema for updating a milestone - all fields optional
+// Schema for updating a milestone
+
 export const updateMilestoneSchema = z.object({
   id: z.string().uuid(),
-  title: z.string().min(1).optional().nullable(),
-  description: z.string().optional().nullable(),
-  duration_days: z.number().int().positive().optional().nullable(),
-  milestone_price: z.number().positive().optional().nullable(),
-  free_revisions: z.number().int().nonnegative().optional().nullable(),
-  revision_rate: z.number().nonnegative().optional().nullable(),
-  status: z.enum(["not_started", "in_progress", "completed", "revision"]).optional().nullable(),
+  project_id: z.string().uuid(),  // required for auth check
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().max(2000).optional(),
+  milestone_price: z.preprocess(
+    val => (val !== "" ? Number(val) : undefined),
+    z.number().positive().optional()
+  ),
+  duration_days: z.number().int().positive().optional(),
+  free_revisions: z.number().int().nonnegative().optional(),
+  revision_rate: z.preprocess(
+    val => (val !== "" ? Number(val) : undefined),
+    z.number().nonnegative().optional()
+  ),
+  status: z.enum([
+    "not_started",
+    "in_progress",
+    "submitted",
+    "approved",
+    "rejected",
+  ]).optional(),
 });
+

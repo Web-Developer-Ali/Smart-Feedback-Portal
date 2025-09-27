@@ -32,19 +32,19 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useUser } from "../user-provider";
-import { signOut } from "@/app/auth/actions";
+import { signOut } from "next-auth/react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
 export function DashboardSidebar() {
   const { user, loading } = useUser();
-  const route = useRouter();
+  const router = useRouter();
 
   const handleSignOut = async () => {
     try {
-      const result = await signOut();
-      toast.success(result.message);
-      route.push("/login");
+      await signOut({ redirect: false });
+      toast.success("Signed out successfully.");
+      router.push("/login");
     } catch (err) {
       console.error("Error during signout:", err);
       toast.error("Failed to sign out. Please try again.");
@@ -58,14 +58,9 @@ export function DashboardSidebar() {
     { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, color: "text-orange-500" },
   ];
 
-  const getRoleColor = (role: string) =>
-    role === "agency"
-      ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
-      : "bg-gradient-to-r from-blue-500 to-cyan-500 text-white";
-
   return (
     <Sidebar className="border-r-0 bg-gradient-to-b from-slate-50 to-white">
-      {/* Static header - always rendered */}
+      {/* Header */}
       <SidebarHeader className="border-b border-slate-200/50">
         <div className="flex items-center gap-2 px-2 py-3">
           <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg">
@@ -82,7 +77,7 @@ export function DashboardSidebar() {
         </div>
       </SidebarHeader>
 
-      {/* Navigation always rendered */}
+      {/* Navigation */}
       <SidebarContent className="px-2">
         <SidebarGroup>
           <SidebarGroupLabel className="text-slate-600 font-semibold text-xs sm:text-sm">
@@ -112,12 +107,11 @@ export function DashboardSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* Profile section with loading skeleton */}
+      {/* Footer / Profile */}
       <SidebarFooter className="border-t border-slate-200/50 p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             {loading ? (
-              // Loading state only for profile
               <div className="flex items-center gap-3 p-2">
                 <div className="h-8 w-8 rounded-full bg-slate-200 animate-pulse" />
                 <div className="flex flex-col gap-1">
@@ -142,8 +136,8 @@ export function DashboardSidebar() {
                       <span className="text-xs sm:text-sm font-semibold text-slate-800 truncate w-full">
                         {user.name || user.email}
                       </span>
-                      <Badge className={`text-xs ${getRoleColor("agency")} shadow-sm`}>
-                        Agency
+                      <Badge className="text-xs bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-sm">
+                        Member
                       </Badge>
                     </div>
                     <ChevronUp className="ml-auto h-3 w-3 sm:h-4 sm:w-4 text-slate-400 flex-shrink-0" />

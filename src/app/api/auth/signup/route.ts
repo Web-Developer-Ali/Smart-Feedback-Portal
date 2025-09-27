@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { query } from "@/lib/db";
 import { sendAndStoreOtp } from "@/lib/mail/send-and-store-otp";
+import bcrypt from "bcryptjs";
+import { v4 as uuidv4 } from "uuid";
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
-
   try {
     const { email, password, fullName, companyName } = await req.json();
 
@@ -15,14 +15,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if user already exists in profile table
-    const { data: existingUser } = await (await supabase)
-      .from("profiles")
-      .select("email")
-      .eq("email", email)
-      .single();
+    // Step 1: Check if user already exists
+    const existingUser = await query(
+      "SELECT id FROM users WHERE email = $1 LIMIT 1",
+      [email]
+    );
 
-    if (existingUser) {
+    if (existingUser.rows.length > 0) {
       return NextResponse.json(
         {
           success: false,
@@ -33,46 +32,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Step 1: Create Auth user
-    const { error: authError } = await (
-      await supabase
-    ).auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-          company_name: companyName,
-          email_verified_byOTP: false,
-        },
-      },
-    });
+    // Step 2: Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    if (authError) {
-      return NextResponse.json(
-        { success: false, error: authError.message },
-        { status: 500 }
-      );
-    }
+    // Step 3: Insert into users table
+    const userId = uuidv4();
+    await query(
+      `INSERT INTO users (id, email, password_hash, full_name, company_name, email_verified, created_at)
+       VALUES ($1, $2, $3, $4, $5, false, NOW())`,
+      [userId, email, hashedPassword, fullName, companyName]
+    );
 
-    // Step 2: Create profile row
-    const { error: profileError } = await (await supabase)
-      .from("profiles")
-      .upsert({
-        email,
-        full_name: fullName,
-        company_name: companyName,
-        email_verified: false,
-      });
-
-    if (!profileError) {
-      return NextResponse.json(
-        { success: false, error: "Failed to create profile." },
-        { status: 500 }
-      );
-    }
-
-    // Step 3: Send OTP email
+    // Step 4: Send OTP email
     const otpResult = await sendAndStoreOtp(email);
 
     if (!otpResult.success) {

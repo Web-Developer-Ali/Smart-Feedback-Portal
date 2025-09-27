@@ -1,8 +1,15 @@
--- Create project_activities table
+-- =============================================
+-- Project Activities Table
+-- =============================================
 CREATE TABLE project_activities (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  project_id UUID NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  -- Relationships
+  project_id   UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   milestone_id UUID REFERENCES milestones(id) ON DELETE SET NULL,
+  performed_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+  -- Activity details
   activity_type TEXT NOT NULL CHECK (activity_type IN (
     'project_created',
     'project_updated',
@@ -21,55 +28,40 @@ CREATE TABLE project_activities (
     'client_notified',
     'comment_added'
   )),
-  description TEXT NOT NULL,
-  performed_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  description TEXT NOT NULL CHECK (char_length(trim(description)) BETWEEN 5 AND 1000),
   metadata JSONB DEFAULT '{}'::jsonb,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+
+  -- Timestamps
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Create indexes for better performance
-CREATE INDEX idx_project_activities_project_id ON project_activities(project_id);
-CREATE INDEX idx_project_activities_milestone_id ON project_activities(milestone_id);
-CREATE INDEX idx_project_activities_activity_type ON project_activities(activity_type);
-CREATE INDEX idx_project_activities_performed_by ON project_activities(performed_by);
-CREATE INDEX idx_project_activities_created_at ON project_activities(created_at);
+-- =============================================
+-- Indexes
+-- =============================================
+CREATE INDEX idx_project_activities_project_id 
+  ON project_activities(project_id);
 
--- Create index for metadata if you need to query specific fields
-CREATE INDEX idx_project_activities_metadata ON project_activities USING GIN (metadata);
+CREATE INDEX idx_project_activities_milestone_id 
+  ON project_activities(milestone_id);
 
--- Enable Row Level Security (RLS) if needed
-ALTER TABLE project_activities ENABLE ROW LEVEL SECURITY;
+CREATE INDEX idx_project_activities_activity_type 
+  ON project_activities(activity_type);
 
--- Create policy to allow users to see activities for projects they own
-CREATE POLICY "Users can view activities for their projects" 
-ON project_activities 
-FOR SELECT 
-USING (
-  project_id IN (
-    SELECT id FROM project WHERE agency_id = auth.uid()
-  )
-);
+CREATE INDEX idx_project_activities_performed_by 
+  ON project_activities(performed_by);
 
--- Create policy to allow system to insert activities
-CREATE POLICY "System can insert activities" 
-ON project_activities 
-FOR INSERT 
-WITH CHECK (true);
+CREATE INDEX idx_project_activities_created_at 
+  ON project_activities(created_at DESC);
 
--- Create policy to prevent updates and deletes (activities are append-only)
-CREATE POLICY "Activities are append-only" 
-ON project_activities 
-FOR UPDATE 
-USING (false);
+-- JSONB index for flexible queries
+CREATE INDEX idx_project_activities_metadata 
+  ON project_activities USING GIN (metadata);
 
-CREATE POLICY "Activities cannot be deleted" 
-ON project_activities 
-FOR DELETE 
-USING (false);
-
--- Create trigger to update updated_at timestamp
-CREATE OR REPLACE FUNCTION update_updated_at_column()
+-- =============================================
+-- Trigger: Auto-update updated_at
+-- =============================================
+CREATE OR REPLACE FUNCTION update_project_activities_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
   NEW.updated_at = NOW();
@@ -77,7 +69,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER update_project_activities_updated_at
-  BEFORE UPDATE ON project_activities
-  FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_update_project_activities_updated_at
+BEFORE UPDATE ON project_activities
+FOR EACH ROW
+EXECUTE FUNCTION update_project_activities_updated_at();

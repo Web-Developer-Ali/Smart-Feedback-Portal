@@ -10,7 +10,6 @@ interface HelpSectionProps {
 
 export function HelpSection(projectId: HelpSectionProps) {
   const router = useRouter();
-  console.log(projectId)
   return (
     <Card className="bg-white border border-gray-200 shadow-lg w-full max-w-full">
       <CardHeader className="pb-4">

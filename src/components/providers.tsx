@@ -1,25 +1,16 @@
-"use client"
+"use client";
 
-import type React from "react"
-
-import { Toaster } from "sonner"
+import { SessionProvider } from "next-auth/react";
+import { UserProvider } from "@/components/user-provider";
+import { Toaster } from "@/components/ui/sonner";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <>
-      {children}
-      <Toaster
-        position="top-right"
-        richColors
-        closeButton
-        toastOptions={{
-          style: {
-            background: "white",
-            border: "1px solid #e5e7eb",
-            color: "#374151",
-          },
-        }}
-      />
-    </>
-  )
+    <SessionProvider>
+      <UserProvider>
+        {children}
+        <Toaster />
+      </UserProvider>
+    </SessionProvider>
+  );
 }

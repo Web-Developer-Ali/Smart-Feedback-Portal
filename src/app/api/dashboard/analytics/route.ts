@@ -1,42 +1,45 @@
 import { z } from "zod";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/options";
+import { query } from "@/lib/db";
 
 export async function GET() {
   try {
-    const supabase = createClient();
-    
-    // 1. Authenticate user first (most important check)
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // 1. Authenticate user using NextAuth
+    const session = await getServerSession(authOptions);
 
-    if (authError || !user) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // 2. Get user's agency ID from profile (single query)
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("id", user.id)
-      .single();
-    if (profileError || !profile) {
+    const userId = session.user.id;
+
+    // 2. Get user's agency status from users table
+    const profileResult = await query(
+      "SELECT id, is_agency FROM users WHERE id = $1",
+      [userId]
+    );
+
+    if (!profileResult.rows.length) {
       return NextResponse.json({ error: "User profile not found" }, { status: 404 });
     }
 
+    const profile = profileResult.rows[0];
+
     const agencyId = profile.id;
-    if (!agencyId) {
-      return NextResponse.json({ error: "User is not associated with an agency" }, { status: 403 });
+
+    // 3. Call the PostgreSQL function for analytics data
+    const result = await query(
+      "SELECT get_agency_analytics($1) as analytics",
+      [agencyId]
+    );
+
+    if (!result.rows.length || !result.rows[0].analytics) {
+      return NextResponse.json({ error: "Failed to fetch analytics data" }, { status: 500 });
     }
 
-    // 3. Single RPC call for all analytics data
-    const { data, error } = await supabase.rpc("get_agency_analytics", {
-      agency_id: agencyId,
-    });
-
-    if (error) {
-      console.error("Supabase RPC error:", error);
-      return NextResponse.json({ error: "Database error" }, { status: 500 });
-    }
+    const data = result.rows[0].analytics;
 
     return NextResponse.json(data, {
       status: 200,

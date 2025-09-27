@@ -1,11 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { query } from "@/lib/db";
 
 export async function POST(request: Request) {
   try {
-    // 1. Parse and validate input
     const { email, otp } = await request.json();
-    
+
     if (!email || !otp) {
       return NextResponse.json(
         { success: false, message: "Email and OTP are required" },
@@ -13,49 +12,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Initialize Supabase client (single await)
-    const supabase = await createClient();
+    // 1. Fetch user profile
+    const { rows } = await query(
+      `SELECT email_otp, otp_expires_at, email_verified
+       FROM users
+       WHERE LOWER(email) = LOWER($1)
+       LIMIT 1`,
+      [email]
+    );
 
-    // 3. SECURELY validate user session
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError) {
-      console.error("Auth error:", authError);
-      return NextResponse.json(
-        { success: false, message: "Session verification failed" },
-        { status: 401 }
-      );
-    }
-
-    if (!user?.email) {
-      return NextResponse.json(
-        { success: false, message: "Authentication required" },
-        { status: 401 }
-      );
-    }
-
-    // 4. Verify email ownership
-    if (user.email.toLowerCase() !== email.toLowerCase()) {
-      return NextResponse.json(
-        { success: false, message: "Unauthorized verification attempt" },
-        { status: 403 }
-      );
-    }
-
-    // 5. Fetch OTP data (single await)
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("email_otp, otp_expires_at, email_verified")
-      .eq("email", email)
-      .maybeSingle();
-
-    if (profileError) {
-      console.error("Profile error:", profileError);
-      return NextResponse.json(
-        { success: false, message: "Database error" },
-        { status: 500 }
-      );
-    }
+    const profile = rows[0];
 
     if (!profile) {
       return NextResponse.json(
@@ -64,7 +30,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // 6. Check verification status
     if (profile.email_verified) {
       return NextResponse.json(
         { success: false, message: "Email already verified" },
@@ -72,8 +37,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // 7. Validate OTP
+    // 2. OTP validation
     const now = new Date();
+
     if (!profile.email_otp || !profile.otp_expires_at) {
       return NextResponse.json(
         { success: false, message: "No active OTP found" },
@@ -95,66 +61,27 @@ export async function POST(request: Request) {
       );
     }
 
-    // 8. Execute atomic verification
-    const updatePromises = [
-      supabase.from("profiles").update({
-        email_verified: true,
-        email_otp: null,
-        otp_expires_at: null,
-        updated_at: now.toISOString(),
-      }).eq("email", email),
-      
-      supabase.auth.updateUser({
-        data: { 
-          email_verified_byOTP: true,
-          verification_timestamp: now.toISOString() 
-        }
-      })
-    ];
+    // 3. Mark email as verified
+    await query(
+      `UPDATE users
+       SET email_verified = true,
+           email_otp = NULL,
+           otp_expires_at = NULL,
+           updated_at = NOW()
+       WHERE LOWER(email) = LOWER($1)`,
+      [email]
+    );
 
-    const [profileResult, authResult] = await Promise.all(updatePromises);
-
-    // 9. Handle errors
-    if (profileResult.error) {
-      console.error("Profile update error:", profileResult.error);
-      return NextResponse.json(
-        { success: false, message: "Profile update failed" },
-        { status: 500 }
-      );
-    }
-
-    if (authResult.error) {
-      console.error("Auth update error:", authResult.error);
-      // Attempt rollback
-      await supabase.from("profiles").update({
-        email_verified: false,
-        email_otp: profile.email_otp,
-        otp_expires_at: profile.otp_expires_at
-      }).eq("email", email);
-
-      return NextResponse.json(
-        { 
-          success: false, 
-          message: "Please log in again to complete verification" 
-        },
-        { status: 500 }
-      );
-    }
-
-    // 10. Success response
+    // 4. Success response
     return NextResponse.json({
       success: true,
       message: "Email successfully verified",
-      verified_at: now.toISOString()
+      verified_at: now.toISOString(),
     });
-
   } catch (error) {
     console.error("OTP Verification Error:", error);
     return NextResponse.json(
-      { 
-        success: false, 
-        message: "An unexpected error occurred" 
-      },
+      { success: false, message: "Unexpected server error" },
       { status: 500 }
     );
   }

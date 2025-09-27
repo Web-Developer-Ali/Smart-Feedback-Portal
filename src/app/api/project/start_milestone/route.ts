@@ -1,238 +1,233 @@
-// app/api/project/start_milestone/route.ts
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { z } from "zod";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/options";
+import { withTransaction } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { Milestone, Project } from "@/types/api-projectDetails";
+import { z } from "zod";
+import type { PoolClient } from "pg";
 
-// Validation schema
 const startMilestoneSchema = z.object({
   milestone_id: z.string().uuid("Valid milestone ID is required"),
   notes: z.string().optional().nullable(),
 });
 
-
-interface MilestoneWithProject extends Milestone {
-  project: Project;
-  title: string;
-}
+type MilestoneWithProject = {
+  id: string;
+  project_id: string;
+  agency_id: string;
+  title?: string;
+  status?: string;
+  duration_days?: number;
+  milestone_price?: number;
+  project_status?: string;
+  project_name?: string;
+  started_at?: string | null;
+  updated_at?: string | null;
+  starting_notes?: string | null;
+};
 
 export async function POST(request: Request) {
   let milestoneDetails: MilestoneWithProject | null = null;
-  const supabase = createClient();
-  
+
   try {
-    // Parse request body and verify user session in parallel
-    const [requestData, authResult] = await Promise.allSettled([
+    // parse body + session in parallel
+    const [bodyResult, sessionResult] = await Promise.allSettled([
       request.json(),
-      supabase.auth.getUser()
+      getServerSession(authOptions),
     ]);
 
-    // Handle request parsing error
-    if (requestData.status === 'rejected') {
+    if (bodyResult.status === "rejected") {
       return NextResponse.json(
         { error: "Invalid JSON payload" },
         { status: 400 }
       );
     }
 
-    // Handle authentication
-    if (authResult.status === 'rejected' || !authResult.value.data?.user) {
+    if (sessionResult.status === "rejected" || !sessionResult.value?.user?.id) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
       );
     }
 
-    const user = authResult.value.data.user;
-    const validated = startMilestoneSchema.safeParse(requestData.value);
+    const userId = sessionResult.value.user.id;
+    const validated = startMilestoneSchema.safeParse(bodyResult.value);
 
     if (!validated.success) {
       return NextResponse.json(
-        { 
-          error: "Validation failed", 
-          details: validated.error.flatten() 
-        },
+        { error: "Validation failed", details: validated.error.flatten() },
         { status: 400 }
       );
     }
 
     const { milestone_id, notes } = validated.data;
 
-    // Get milestone with basic project details (remove current_milestone_id reference)
-    const { data: milestone, error: milestoneError } = await supabase
-      .from("milestones")
-      .select(`
-        *,
-        project:project_id (
-          id,
-          agency_id,
-          status,
-          name
-        )
-      `)
-      .eq("id", milestone_id)
-      .single();
-
-    if (milestoneError || !milestone) {
-      return NextResponse.json(
-        { error: "Milestone not found" },
-        { status: 404 }
+    // Run the DB operations inside a single transaction
+    const result = await withTransaction(async (client: PoolClient) => {
+      // fetch milestone + project
+      const milestoneRes = await client.query<MilestoneWithProject>(
+        `
+        SELECT m.*, p.id as project_id, p.agency_id, p.status as project_status, p.name as project_name
+        FROM milestones m
+        JOIN project p ON m.project_id = p.id
+        WHERE m.id = $1
+        `,
+        [milestone_id]
       );
-    }
 
-    milestoneDetails = milestone as MilestoneWithProject;
+      if (!milestoneRes.rows.length) {
+        const err = Object.assign(new Error("Milestone not found"), {
+          status: 404,
+        });
+        throw err;
+      }
 
-    // Check authorization
-    if (milestone.project.agency_id !== user.id) {
-      return NextResponse.json(
-        { error: "Unauthorized access to milestone" },
-        { status: 403 }
+      milestoneDetails = milestoneRes.rows[0];
+
+      // authorization
+      if (milestoneDetails.agency_id !== userId) {
+        const err = Object.assign(
+          new Error("Unauthorized access to milestone"),
+          { status: 403 }
+        );
+        throw err;
+      }
+
+      // validate project status
+      const validProjectStatuses = ["active", "in_progress", "pending"];
+      if (
+        !validProjectStatuses.includes(milestoneDetails.project_status || "")
+      ) {
+        const err = Object.assign(
+          new Error(
+            `Cannot start milestones for project with status "${milestoneDetails.project_status}"`
+          ),
+          {
+            status: 400,
+            details: { project_status: milestoneDetails.project_status },
+          }
+        );
+        throw err;
+      }
+
+      // milestone must be not_started
+      if (milestoneDetails.status !== "not_started") {
+        const err = Object.assign(
+          new Error(
+            `Milestone cannot be started; current status "${milestoneDetails.status}"`
+          ),
+          {
+            status: 400,
+            details: {
+              current_status: milestoneDetails.status,
+              allowed_status: "not_started",
+            },
+          }
+        );
+        throw err;
+      }
+
+      // ensure no other milestone is in_progress for the same project
+      const inProgressRes = await client.query(
+        `SELECT id, title, status FROM milestones WHERE project_id = $1 AND status = 'in_progress'`,
+        [milestoneDetails.project_id]
       );
-    }
 
-    // Validate project status
-    const validProjectStatuses = ["active", "in_progress", "pending"];
-    if (!validProjectStatuses.includes(milestone.project.status)) {
-      return NextResponse.json(
-        { 
-          error: "Project is not active",
-          details: `Cannot start milestones for projects with status "${milestone.project.status}"`,
-          project_status: milestone.project.status
-        },
-        { status: 400 }
+      if (inProgressRes.rows.length > 0) {
+        const err = Object.assign(
+          new Error("Another milestone is already in progress"),
+          { status: 400 }
+        );
+        throw err;
+      }
+
+      const now = new Date().toISOString();
+
+      // update milestone
+      const updateRes = await client.query<MilestoneWithProject>(
+        `
+        UPDATE milestones
+        SET status = $1, started_at = $2, updated_at = $3, starting_notes = $4
+        WHERE id = $5
+        RETURNING *
+        `,
+        ["in_progress", now, now, notes ?? null, milestone_id]
       );
-    }
 
-    // Validate that milestone is in "not_started" status
-    if (milestone.status !== "not_started") {
-      return NextResponse.json(
-        { 
-          error: "Milestone cannot be started",
-          details: `Milestone is currently in "${milestone.status}" status. Only "not_started" milestones can be started.`,
-          current_status: milestone.status,
-          allowed_status: "not_started"
-        },
-        { status: 400 }
-      );
-    }
+      if (!updateRes.rows.length) {
+        throw new Error("Milestone status update failed");
+      }
 
-    // Check if any other milestones are in progress for this project
-    const { data: inProgressMilestones, error: progressError } = await supabase
-      .from("milestones")
-      .select("id, title, status")
-      .eq("project_id", milestone.project_id)
-      .eq("status", "in_progress");
+      const updatedMilestone = updateRes.rows[0];
 
-    if (progressError) {
-      console.error("Error checking in-progress milestones:", progressError);
-    }
+      // update project status to in_progress if it was pending
+      let projectUpdated = false;
+      if (milestoneDetails.project_status === "pending") {
+        const projectUpdateRes = await client.query(
+          `UPDATE project SET status = $1, updated_at = $2 WHERE id = $3`,
+          ["in_progress", now, milestoneDetails.project_id]
+        );
+        projectUpdated = (projectUpdateRes.rowCount ?? 0) > 0;
+      }
 
-    // Don't allow starting a new milestone if another is already in progress
-    if (inProgressMilestones && inProgressMilestones.length > 0) {
-      return NextResponse.json(
-        { 
-          error: "Another milestone is already in progress",
-          details: "Please complete the current milestone before starting a new one.",
-          in_progress_milestones: inProgressMilestones.map(m => ({
-            id: m.id,
-            title: m.title
-          }))
-        },
-        { status: 400 }
-      );
-    }
+      // log activity (non-blocking)
+      try {
+        await client.query(
+          `
+          INSERT INTO project_activities (
+            project_id, milestone_id, activity_type, description, performed_by, metadata, created_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,NOW())
+          RETURNING id
+          `,
+          [
+            milestoneDetails.project_id,
+            milestone_id,
+            "milestone_started",
+            `Milestone "${milestoneDetails.title ?? milestone_id}" started`,
+            userId,
+            JSON.stringify({
+              previous_status: "not_started",
+              new_status: "in_progress",
+              notes: notes ?? null,
+              project_name: milestoneDetails.project_name ?? null,
+            }),
+          ]
+        );
+      } catch (logErr) {
+        console.error("Activity log failed (non-critical):", logErr);
+      }
 
-    const now = new Date().toISOString();
-    const updateData = {
-      status: "in_progress",
-      started_at: now,
-      updated_at: now,
-      ...(notes && { starting_notes: notes }),
-    };
+      return {
+        updatedMilestone,
+        projectUpdated,
+        projectId: milestoneDetails.project_id,
+      };
+    });
 
-    // Update milestone status
-    const { data: updatedMilestone, error: updateError } = await supabase
-      .from("milestones")
-      .update(updateData)
-      .eq("id", milestone_id)
-      .select()
-      .single();
-
-    if (updateError) {
-      throw new Error(`Milestone status update failed: ${updateError.message}`);
-    }
-
-    // Update project status to in_progress if it's pending
-    let projectUpdated = false;
-    if (milestone.project.status === "pending") {
-      const { error: projectUpdateError } = await supabase
-        .from("project")
-        .update({
-          status: "in_progress",
-          updated_at: now
-        })
-        .eq("id", milestone.project.id);
-
-      projectUpdated = !projectUpdateError;
-    }
-
-    // Log activity
-    const { error: activityError } = await supabase
-      .from("project_activities")
-      .insert({
-        project_id: milestone.project_id,
-        milestone_id: milestone_id,
-        activity_type: "milestone_started",
-        description: `Milestone "${milestone.title}" started`,
-        performed_by: user.id,
-        metadata: {
-          previous_status: "not_started",
-          new_status: "in_progress",
-          notes: notes,
-          project_name: milestone.project.name
-        },
-        created_at: now
-      });
-
-    // Revalidate cache
+    // revalidate cache (non-blocking)
     try {
-      revalidatePath(`/dashboard/projects/${milestone.project_id}`);
-      revalidatePath("/dashboard/projects");
-    } catch (cacheError) {
-      console.error("Cache revalidation failed:", cacheError);
+      revalidatePath(`/dashboard/project/${result.projectId}`);
+      revalidatePath("/dashboard/project");
+    } catch (cacheErr) {
+      console.error("Cache revalidation failed:", cacheErr);
     }
 
     return NextResponse.json({
       success: true,
       message: "Milestone started successfully",
       data: {
-        milestone: updatedMilestone,
-        project_updated: projectUpdated,
-        activity_logged: !activityError
-      }
-    });
-
-  } catch (error: unknown) {
-    console.error("API Error:", error);
-
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : "Internal server error";
-    
-    const errorStack = error instanceof Error 
-      ? error.stack 
-      : undefined;
-
-    return NextResponse.json(
-      {
-        error: errorMessage,
-        ...(process.env.NODE_ENV === "development" && { 
-          stack: errorStack,
-          ...(milestoneDetails && { milestone_name: milestoneDetails.title })
-        }),
+        milestone: result.updatedMilestone,
+        project_updated: result.projectUpdated,
+        activity_logged: true,
       },
-      { status: 500 }
-    );
+    });
+  } catch (error: unknown) {
+    console.error("Start Milestone API Error:", error);
+
+    const status = (error as any)?.status ?? 500;
+    const message =
+      error instanceof Error ? error.message : "Internal server error";
+
+    return NextResponse.json({ error: message }, { status });
   }
 }

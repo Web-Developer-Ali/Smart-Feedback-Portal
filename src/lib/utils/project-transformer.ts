@@ -2,7 +2,7 @@ import type { ApiProject, ApiMilestone, Project, Milestone, Review } from "@/typ
 
 export function transformApiProject(apiProject: ApiProject): Project {
   // Calculate total budget from milestones
-  const totalBudget = apiProject.milestones.reduce((sum, milestone) => sum + milestone.milestone_price, 0)
+  const totalBudget = apiProject.project_budget;
 
   // Calculate total reviews and average rating
   const allReviews = apiProject.milestones.flatMap((m) => m.reviews)

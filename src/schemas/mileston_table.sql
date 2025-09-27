@@ -1,48 +1,78 @@
--- Create the table
+-- =============================================
+-- Milestones Table
+-- =============================================
 CREATE TABLE milestones (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id UUID REFERENCES project(id) NOT NULL,
-  title TEXT NOT NULL,
-  duration_days INTEGER NOT NULL,
+
+  -- Relationships
+  project_id UUID NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+  -- Core fields
+  title TEXT NOT NULL CHECK (char_length(title) >= 3),
   description TEXT,
-  status TEXT NOT NULL CHECK (status IN ('not_started','in_progress', 'submitted', 'approved', 'rejected')),
-  milestone_price NUMERIC(10,2) NOT NULL,
-  is_payment_cleared BOOLEAN DEFAULT FALSE,
-  free_revisions INTEGER DEFAULT 0,
-  revision_rate NUMERIC(10,2),
-  used_revisions INTEGER DEFAULT 0,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  started_at TIMESTAMP,
-  submitted_at TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  duration_days INTEGER NOT NULL CHECK (duration_days > 0),
+  priority INTEGER DEFAULT 0 CHECK (priority >= 0);
+  starting_notes TEXT;
+    -- Pricing
+  milestone_price NUMERIC(10,2) NOT NULL CHECK (milestone_price >= 0),
+  is_payment_cleared BOOLEAN NOT NULL DEFAULT FALSE,
+  free_revisions INTEGER NOT NULL DEFAULT 0 CHECK (free_revisions >= 0),
+  revision_rate NUMERIC(10,2) DEFAULT 0 CHECK (revision_rate >= 0),
+  used_revisions INTEGER NOT NULL DEFAULT 0 CHECK (used_revisions >= 0),
+
+  -- Status
+  status TEXT NOT NULL DEFAULT 'not_started'
+    CHECK (status IN ('not_started','in_progress','submitted','approved','rejected')),
+
+  -- Soft delete
+  is_archived BOOLEAN DEFAULT FALSE,
+
+  -- Timestamps
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  started_at TIMESTAMPTZ,
+  submitted_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  -- Optional full-text search
+  search_vector tsvector GENERATED ALWAYS AS (
+    to_tsvector('english',
+      COALESCE(title, '') || ' ' ||
+      COALESCE(description, '')
+    )
+  ) STORED
 );
 
--- Create indexes for optimal query performance
+-- =============================================
+-- Indexes
+-- =============================================
+
+-- General foreign key lookup
 CREATE INDEX idx_milestones_project_id ON milestones(project_id);
+
+-- Common filters
 CREATE INDEX idx_milestones_status ON milestones(status);
 CREATE INDEX idx_milestones_payment_cleared ON milestones(is_payment_cleared);
-CREATE INDEX idx_milestones_created_at ON milestones(created_at);
+CREATE INDEX idx_milestones_archived ON milestones(is_archived);
 
--- Partial indexes for common query patterns
-CREATE INDEX idx_milestones_uncleared_payments ON milestones(project_id) 
+-- Partial indexes for frequent queries
+CREATE INDEX idx_milestones_uncleared_payments 
+  ON milestones(project_id) 
   WHERE is_payment_cleared = FALSE;
-  
-CREATE INDEX idx_milestones_pending_status ON milestones(project_id, status) 
+
+CREATE INDEX idx_milestones_pending_status 
+  ON milestones(project_id, status) 
   WHERE status IN ('not_started', 'submitted');
 
--- Composite index for status and payment queries
-CREATE INDEX idx_milestones_status_payment ON milestones(status, is_payment_cleared);
+-- Composite for status + payment filtering
+CREATE INDEX idx_milestones_status_payment 
+  ON milestones(status, is_payment_cleared);
 
--- Trigger for auto-updating updated_at
-CREATE OR REPLACE FUNCTION update_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- Full-text search
+CREATE INDEX idx_milestones_search ON milestones USING GIN(search_vector);
 
-CREATE TRIGGER update_milestones_updated_at
+-- =============================================
+-- Auto-update updated_at
+-- =============================================
+CREATE TRIGGER trg_update_milestones_updated_at
 BEFORE UPDATE ON milestones
 FOR EACH ROW
-EXECUTE FUNCTION update_updated_at();
+EXECUTE FUNCTION update_updated_at_column();

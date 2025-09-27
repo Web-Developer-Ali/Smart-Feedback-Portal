@@ -37,7 +37,6 @@ export default function ProjectDetailClient() {
         },
         cache: "no-store",
       })
-
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error("Project not found")
@@ -53,7 +52,6 @@ export default function ProjectDetailClient() {
       if (!apiProject || !apiProject.id) {
         throw new Error("Invalid project data received")
       }
-
       // Transform the API data to match your UI
       const transformedProject = transformApiProject(apiProject)
       const transformedMilestones = (apiProject.milestones || []).map((milestone) =>

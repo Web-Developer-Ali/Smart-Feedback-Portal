@@ -50,11 +50,11 @@ async function updateMilestone(milestoneId: string, projectId: string, data: Par
         },
       },
     )
-
     return response.data
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const errorMessage = error.response?.data?.error || "Failed to update milestone"
+      console.log("API Error:", errorMessage)
       throw new Error(errorMessage)
     }
     throw new Error("Failed to update milestone")

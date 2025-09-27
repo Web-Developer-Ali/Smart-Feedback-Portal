@@ -36,11 +36,11 @@ export interface ProjectResponse {
   id: string;
   name: string;
   type: string;
+  project_budget:number | null;
   created_at: string;
   client_name: string;
   client_email: string;
   project_duration_days: number | null;
-  jwt_token: string | null;
   milestones: {
     milestone_id: string;
     milestone_price: number | null;

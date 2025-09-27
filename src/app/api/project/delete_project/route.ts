@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/options";
+import { withTransaction } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -32,263 +34,167 @@ interface DeletionResult {
 
 export async function DELETE(request: Request) {
   let projectDetails: Project | null = null;
-  const supabase = createClient();
-  
+
   try {
     // Parse request body
-    const requestBody = await request.json();
-    const projectId = requestBody.projectId;
+    const { projectId } = await request.json();
 
     // Validate input
     const validated = deleteProjectSchema.safeParse({ projectId });
-
     if (!validated.success) {
       return NextResponse.json(
-        { 
-          error: "Validation failed", 
-          details: validated.error.flatten() 
-        },
+        { error: "Validation failed", details: validated.error.flatten() },
         { status: 400 }
       );
     }
 
     // Verify user session
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
+    const userId = session.user.id;
 
-    // Get project data
-    const { data: project, error: projectError } = await supabase
-      .from("project")
-      .select("id, agency_id, name, status, client_name")
-      .eq("id", projectId)
-      .single();
-
-    if (projectError || !project) {
-      return NextResponse.json(
-        { error: "Project not found" },
-        { status: 404 }
+    // Transaction block
+    const deletionResults = await withTransaction(async (client) => {
+      // Get project
+      const projectResult = await client.query<Project>(
+        `SELECT id, agency_id, name, status, client_name FROM project WHERE id = $1`,
+        [projectId]
       );
-    }
 
-    projectDetails = project;
-
-    // Check authorization
-    if (project.agency_id !== user.id) {
-      return NextResponse.json(
-        { error: "Unauthorized access to project" },
-        { status: 403 }
-      );
-    }
-
-    // Get project stats before deletion for activity logging
-    const projectStats = await getProjectStats(supabase, projectId);
-
-    // LOG THE DELETION ACTIVITY FIRST - BEFORE ANY DELETION HAPPENS
-    await logProjectDeletion(supabase, project, user.id, projectStats, 'manual');
-
-    // Attempt cascading deletion with stored procedure first
-    let deletionMethod = 'stored_procedure';
-    let deletionResults: DeletionResult[] = [];
-
-    try {
-      const { error: procedureError } = await supabase.rpc('delete_project_cascade', {
-        project_id: projectId
-      });
-
-      if (procedureError) {
-        deletionMethod = 'manual';
-        throw procedureError;
+      if (!projectResult.rows.length) {
+        throw new Error("Project not found");
       }
-    } catch {
-      console.log('Stored procedure not available, using manual deletion');
-      deletionResults = await deleteProjectManually(supabase, projectId);
-    }
 
-    // Cleanup and revalidate cache in parallel (non-blocking)
-    await Promise.allSettled([
-      // Cleanup related files from Cloudinary (if needed)
+      projectDetails = projectResult.rows[0];
+
+      // Authorization check
+      if (projectDetails.agency_id !== userId) {
+        throw new Error("Unauthorized access to project");
+      }
+
+      // Gather stats
+      const stats = await getProjectStats(client, projectId);
+
+      // Log deletion activity (don't block if fails)
+      await logProjectDeletion(client, projectDetails, userId, stats, "manual").catch(
+        (err) => console.error("Logging failed:", err)
+      );
+
+      // Perform manual deletion
+      return deleteProjectManually(client, projectId);
+    });
+
+    // Cleanup and cache revalidation (non-blocking)
+    Promise.allSettled([
       cleanupProjectFiles(projectId),
-      
-      // Revalidate cache
-      revalidateProjectCache(projectId)
+      revalidateProjectCache(projectId),
     ]);
 
     return NextResponse.json({
       success: true,
       message: "Project deleted successfully",
-      deletion_method: deletionMethod,
-      ...(deletionMethod === 'manual' && { deletion_results: deletionResults })
+      deletion_results: deletionResults
     });
-
   } catch (error: unknown) {
-    console.error("API Error:", error);
-
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : "Internal server error";
-    
-    const errorStack = error instanceof Error 
-      ? error.stack 
-      : undefined;
+    console.error("Project Deletion API Error:", error);
 
     return NextResponse.json(
       {
-        error: errorMessage,
-        ...(process.env.NODE_ENV === "development" && { 
-          stack: errorStack,
-          ...(projectDetails && { project_name: projectDetails.name })
-        }),
+        error: error instanceof Error ? error.message : "Internal server error",
       },
-      { status: 500 }
+      { status: error instanceof Error && error.message === "Unauthorized access to project" ? 403 :
+               error instanceof Error && error.message === "Project not found" ? 404 : 500 }
     );
   }
 }
 
 // Get project statistics before deletion
-async function getProjectStats(supabase: ReturnType<typeof createClient>, projectId: string): Promise<ProjectStats> {
+async function getProjectStats(client: any, projectId: string): Promise<ProjectStats> {
   try {
-    const [milestonesResult, reviewsResult, mediaResult] = await Promise.allSettled([
-      supabase
-        .from("milestones")
-        .select("id", { count: 'exact' })
-        .eq("project_id", projectId),
-      
-      supabase
-        .from("reviews")
-        .select("id", { count: 'exact' })
-        .eq("project_id", projectId),
-      
-      supabase
-        .from("media_attachments")
-        .select("id", { count: 'exact' })
-        .eq("project_id", projectId)
+    const [milestones, reviews, media] = await Promise.all([
+      client.query(`SELECT COUNT(*) as count FROM milestones WHERE project_id = $1`, [projectId]),
+      client.query(`SELECT COUNT(*) as count FROM reviews WHERE project_id = $1`, [projectId]),
+      client.query(`SELECT COUNT(*) as count FROM media_attachments WHERE project_id = $1`, [projectId]),
     ]);
 
-    let milestones = 0;
-    let reviews = 0;
-    let media_attachments = 0;
-
-    // Handle milestones result
-    if (milestonesResult.status === 'fulfilled' && milestonesResult.value.data) {
-      milestones = milestonesResult.value.count || 0;
-    }
-
-    // Handle reviews result
-    if (reviewsResult.status === 'fulfilled' && reviewsResult.value.data) {
-      reviews = reviewsResult.value.count || 0;
-    }
-
-    // Handle media attachments result
-    if (mediaResult.status === 'fulfilled' && mediaResult.value.data) {
-      media_attachments = mediaResult.value.count || 0;
-    }
-
-    return { milestones, reviews, media_attachments };
+    return {
+      milestones: parseInt(milestones.rows[0].count) || 0,
+      reviews: parseInt(reviews.rows[0].count) || 0,
+      media_attachments: parseInt(media.rows[0].count) || 0,
+    };
   } catch (error) {
     console.error("Error getting project stats:", error);
     return { milestones: 0, reviews: 0, media_attachments: 0 };
   }
 }
 
-// Manual deletion function with proper error handling
-async function deleteProjectManually(supabase: ReturnType<typeof createClient>, projectId: string): Promise<DeletionResult[]> {
+// Manual deletion function - FIXED: Don't continue if a table deletion fails
+async function deleteProjectManually(client: any, projectId: string): Promise<DeletionResult[]> {
   const tablesToDelete = [
-    // Order matters - delete child tables first
-    // REMOVED: project_activities - we want to preserve activity logs
-    { table: 'media_attachments', column: 'project_id', description: 'Media attachments' },
-    { table: 'reviews', column: 'project_id', description: 'Reviews' },
-    { table: 'milestones', column: 'project_id', description: 'Milestones' },
-    { table: 'project_invitations', column: 'project_id', description: 'Project invitations' },
-    { table: 'project_members', column: 'project_id', description: 'Project members' },
+    { table: "media_attachments", column: "project_id" },
+    { table: "reviews", column: "project_id" },
+    { table: "milestones", column: "project_id" },
+    { table: "project_activities", column: "project_id" },
   ];
 
-  const deletionResults: DeletionResult[] = [];
+  const results: DeletionResult[] = [];
 
-  for (const { table, column, description } of tablesToDelete) {
+  for (const { table, column } of tablesToDelete) {
     try {
-      const { error, count } = await supabase
-        .from(table)
-        .delete({ count: 'estimated' })
-        .eq(column, projectId);
-
-      if (error) {
-        console.warn(`Failed to delete ${description}:`, error.message);
-        deletionResults.push({ table, success: false, error: error.message });
-      } else {
-        deletionResults.push({ table, success: true, deleted: count || 0 });
-      }
+      const res = await client.query(`DELETE FROM ${table} WHERE ${column} = $1`, [projectId]);
+      results.push({ table, success: true, deleted: res.rowCount || 0 });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(`Error deleting ${description}:`, errorMessage);
-      deletionResults.push({ table, success: false, error: errorMessage });
+      // If any table deletion fails, throw immediately to abort transaction
+      const message = error instanceof Error ? error.message : "Unknown error";
+      throw new Error(`Failed to delete from ${table}: ${message}`);
     }
   }
 
-  // Finally delete the project itself
-  try {
-    const { error: projectDeleteError } = await supabase
-      .from("project")
-      .delete()
-      .eq("id", projectId);
-
-    if (projectDeleteError) {
-      throw new Error(`Project deletion failed: ${projectDeleteError.message}`);
-    }
-
-    deletionResults.push({ table: 'project', success: true });
-
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error("Project deletion failed:", errorMessage);
-    throw new Error(`Project deletion failed: ${errorMessage}`);
+  // Finally delete project
+  const projectRes = await client.query(`DELETE FROM project WHERE id = $1`, [projectId]);
+  if (projectRes.rowCount === 0) {
+    throw new Error("Project deletion failed: No rows affected");
   }
+  results.push({ table: "project", success: true, deleted: projectRes.rowCount });
 
-  return deletionResults;
+  return results;
 }
 
-// Log project deletion activity - NOW CALLED BEFORE DELETION
+// Log project deletion
 async function logProjectDeletion(
-  supabase: ReturnType<typeof createClient>, 
-  project: Project, 
-  userId: string, 
-  stats: ProjectStats, 
+  client: any,
+  project: Project,
+  userId: string,
+  stats: ProjectStats,
   method: string
 ): Promise<void> {
-  try {
-    await supabase
-      .from("project_activities")
-      .insert({
-        project_id: project.id,
-        activity_type: "project_deleted",
-        description: `Project "${project.name}" deleted by user`,
-        performed_by: userId,
-        metadata: {
-          project_name: project.name,
-          client_name: project.client_name,
-          project_status: project.status,
-          deletion_method: method,
-          stats: stats,
-          deleted_at: new Date().toISOString()
-        },
-        created_at: new Date().toISOString()
-      });
-  } catch (error) {
-    console.error("Failed to log project deletion activity:", error);
-    // Don't throw here - we want the deletion to proceed even if logging fails
-  }
+  await client.query(
+    `INSERT INTO project_activities (
+      project_id, activity_type, description, performed_by, metadata, created_at
+    ) VALUES ($1,$2,$3,$4,$5,NOW())`,
+    [
+      project.id,
+      "project_deleted",
+      `Project "${project.name}" deleted by user`,
+      userId,
+      JSON.stringify({
+        project_name: project.name,
+        client_name: project.client_name,
+        project_status: project.status,
+        deletion_method: method,
+        stats,
+        deleted_at: new Date().toISOString(),
+      }),
+    ]
+  );
 }
 
-// Cleanup project files from Cloudinary (optional)
+// Cleanup project files (placeholder for Cloudinary etc.)
 async function cleanupProjectFiles(projectId: string): Promise<void> {
   try {
     console.log(`Would cleanup files for project: ${projectId}`);
-    // Cloudinary cleanup logic here
   } catch (error) {
     console.error("File cleanup failed:", error);
   }

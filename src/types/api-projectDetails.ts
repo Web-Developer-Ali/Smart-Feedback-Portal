@@ -9,6 +9,7 @@ export interface ApiProject {
   project_duration_days: number
   milestones: ApiMilestone[]
   jwt_token?: string
+  project_budget: number
 }
 
 export interface ApiMilestone {

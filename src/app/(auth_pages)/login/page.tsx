@@ -1,6 +1,6 @@
 "use client"
 
-import { signInWithGoogle } from "@/app/auth/actions"
+import { signIn } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -30,50 +30,32 @@ export default function LoginPage() {
     e.preventDefault()
     setIsLoading(true)
 
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      })
-
-      const result = await res.json()
-
-      if (res.ok && result.success) {
-        toast.success(result.message || "Login successful!")
-        router.replace("/dashboard")
-      } else {
-        toast.error(result.message || "Login failed. Please try again.")
-      }
-    } catch (error) {
-      console.error("Login error:", error)
-      toast.error("An unexpected error occurred. Please try again.")
-    } finally {
-      setIsLoading(false)
+    const res = await signIn("credentials", {
+      redirect: false,
+      email,
+      password,
+    })
+console.log(res)
+    if (res?.ok) {
+      toast.success("Login successful!")
+      router.replace("/dashboard")
+    } else {
+      toast.error(res?.error || "Login failed. Please try again.")
     }
+
+    setIsLoading(false)
   }
 
   const handleGoogleLogin = async () => {
     setIsGoogleLoading(true)
-    try {
-      await signInWithGoogle()
-    } catch (error) {
-      console.error("Google login error:", error)
-      toast.error("Google login failed.")
-    } finally {
-      setIsGoogleLoading(false)
-    }
+    await signIn("google", { callbackUrl: "/dashboard" })
+    setIsGoogleLoading(false)
   }
 
   return (
     <>
       <Head>
         <title>Login | Smart Feedback Portal</title>
-        <meta name="description" content="Sign in to access your Smart Feedback Portal account and manage your feedback system." />
-        <meta name="keywords" content="login, feedback portal, smart feedback, customer feedback" />
-        <meta property="og:title" content="Login | Smart Feedback Portal" />
-        <meta property="og:description" content="Sign in to access your Smart Feedback Portal account" />
-        <meta property="og:type" content="website" />
       </Head>
 
       <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
@@ -119,14 +101,11 @@ export default function LoginPage() {
 
               <form onSubmit={handleEmailLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-medium">
-                    Email Address
-                  </Label>
+                  <Label htmlFor="email">Email Address</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                     <Input
                       id="email"
-                      name="email"
                       type="email"
                       placeholder="Enter your email"
                       className="pl-10 h-11"
@@ -134,20 +113,16 @@ export default function LoginPage() {
                       onChange={(e) => setEmail(e.target.value)}
                       disabled={isLoading || isGoogleLoading}
                       required
-                      aria-required="true"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-sm font-medium">
-                    Password
-                  </Label>
+                  <Label htmlFor="password">Password</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                     <Input
                       id="password"
-                      name="password"
                       type="password"
                       placeholder="Enter your password"
                       className="pl-10 h-11"
@@ -155,7 +130,6 @@ export default function LoginPage() {
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={isLoading || isGoogleLoading}
                       required
-                      aria-required="true"
                     />
                   </div>
                 </div>
@@ -164,7 +138,6 @@ export default function LoginPage() {
                   type="submit"
                   className="w-full h-11 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
                   disabled={isLoading || isGoogleLoading}
-                  aria-label="Sign in"
                 >
                   {isLoading ? (
                     <>
@@ -179,11 +152,7 @@ export default function LoginPage() {
               <div className="text-center pt-4">
                 <p className="text-sm text-gray-600">
                   Don&apos;t have an account?{" "}
-                  <Link
-                    href="/signup"
-                    className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
-                    aria-label="Sign up"
-                  >
+                  <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-500">
                     Sign up
                   </Link>
                 </p>

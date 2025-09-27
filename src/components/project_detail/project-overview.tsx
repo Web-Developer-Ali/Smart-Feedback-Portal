@@ -35,7 +35,6 @@ export default function ProjectOverview({ project, projectStats }: ProjectOvervi
       return dateString
     }
   }
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
       {/* Enhanced Project Info */}

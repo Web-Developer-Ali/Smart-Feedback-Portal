@@ -3,7 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
-import { UserProvider } from "../components/user-provider";
+import { Providers } from "@/components/providers"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -214,11 +214,11 @@ html {
 }
         `}</style>
       </head>
-      <body className="min-h-screen bg-background font-sans antialiased">
-        <UserProvider>
+      <body className="min-h-screen bg-background font-sans antialiased">         
+        <Providers>
           {children}
-          <Toaster />
-        </UserProvider>
+           <Toaster />
+        </Providers>
       </body>
     </html>
   );

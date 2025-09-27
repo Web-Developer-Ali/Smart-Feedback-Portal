@@ -1,7 +1,7 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createContext, useContext } from "react";
+import { useSession } from "next-auth/react";
 
 interface AppUser {
   id: string;
@@ -20,107 +20,50 @@ interface UserContextValue {
 const UserContext = createContext<UserContextValue | undefined>(undefined);
 
 export const UserProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<AppUser | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const supabase = createClient();
+  const { data: session, status, update } = useSession();
 
-  // Memoized fetch function to prevent unnecessary recreations
-  const fetchUser = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const { data: { user: supabaseUser }, error: userError } = await supabase.auth.getUser();
+  const loading = status === "loading";
+  const error = null; // NextAuth handles errors internally, but you could extend this
 
-      if (userError) {
-        throw new Error(userError.message);
+  const appUser: AppUser | null = session?.user
+    ? {
+        id: session.user.id as string, // make sure you set this in NextAuth callbacks
+        email: session.user.email || "",
+        name:
+          session.user.name ||
+          session.user.email?.split("@")[0] ||
+          "User",
+        avatar_url: session.user.avatar || undefined,
       }
-
-      if (!supabaseUser) {
-        setUser(null);
-        return;
-      }
-
-      // Transform Supabase user to our app user format
-      const appUser: AppUser = {
-        id: supabaseUser.id,
-        email: supabaseUser.email!,
-        name: supabaseUser.user_metadata?.full_name || 
-              supabaseUser.user_metadata?.name || 
-              supabaseUser.email?.split('@')[0] || 
-              'User',
-        avatar_url: supabaseUser.user_metadata?.avatar_url
-      };
-
-      setUser(appUser);
-      
-    } catch (err) {
-      console.error("Error fetching user:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch user");
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [supabase.auth]);
-
-  useEffect(() => {
-    fetchUser();
-    
-    // Set up real-time auth state listener
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        const appUser: AppUser = {
-          id: session.user.id,
-          email: session.user.email!,
-          name: session.user.user_metadata?.full_name || 
-                session.user.user_metadata?.name || 
-                session.user.email?.split('@')[0] || 
-                'User',
-          avatar_url: session.user.user_metadata?.avatar_url
-        };
-        setUser(appUser);
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-      }
-    });
-
-    // Cleanup subscription
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [fetchUser, supabase.auth]);
+    : null;
 
   const value: UserContextValue = {
-    user,
+    user: appUser,
     loading,
     error,
-    refreshUser: fetchUser,
+    refreshUser: async () => {
+      await update();
+    },
   };
 
   return (
-    <UserContext.Provider value={value}>
-      {children}
-    </UserContext.Provider>
+    <UserContext.Provider value={value}>{children}</UserContext.Provider>
   );
 };
 
 export function useUser() {
   const ctx = useContext(UserContext);
-  
+
   if (!ctx) {
     throw new Error("useUser must be used within UserProvider");
   }
-  
+
   return ctx;
 }
 
-// Optional: Create a hook for easy user access in components
 export function useCurrentUser() {
   const { user, loading, error } = useUser();
-  
+
   return {
     user,
     loading,
