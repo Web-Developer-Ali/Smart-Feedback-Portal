@@ -33,7 +33,6 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get("projectId");
-
     // --- Validate query param ---
     if (!projectId) {
       return NextResponse.json(

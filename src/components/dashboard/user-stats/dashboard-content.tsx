@@ -11,6 +11,7 @@ export function DashboardContent({ userStats, statsLoading, statsError, onRetryS
     totalReviews: userStats?.total_reviews || 0,
     averageRating: userStats?.avg_rating || 0,
     growthThisMonth: userStats?.growth_this_month || 0,
+    completion_rate: userStats?.completion_rate || 0,
   }
 
   return (
@@ -72,8 +73,8 @@ export function DashboardContent({ userStats, statsLoading, statsError, onRetryS
                         project.status === "completed"
                           ? "bg-green-100 text-green-800"
                           : project.status === "in_progress"
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-gray-100 text-gray-800"
+                          ? "bg-blue-100 text-blue-800"
+                          : "bg-gray-100 text-gray-800"
                       }`}
                     >
                       {project.status.replace("_", " ")}
@@ -135,24 +136,32 @@ export function DashboardContent({ userStats, statsLoading, statsError, onRetryS
             </div>
           ) : userStats ? (
             <div role="list" aria-label="Performance metrics">
+              {/* Completion Rate */}
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg" role="listitem">
                 <div className="flex justify-between items-center">
                   <span className="font-medium">Project Completion Rate</span>
-                  <span className="text-2xl font-bold text-blue-600" aria-label="92% completion rate">
-                    92%
+                  <span
+                    className="text-2xl font-bold text-blue-600"
+                    aria-label={`${stats.completion_rate}% completion rate`}
+                  >
+                    {stats.completion_rate}%
                   </span>
                 </div>
                 <div
                   className="w-full bg-blue-200 rounded-full h-2 mt-2"
                   role="progressbar"
-                  aria-valuenow={92}
+                  aria-valuenow={stats.completion_rate}
                   aria-valuemin={0}
                   aria-valuemax={100}
                 >
-                  <div className="bg-blue-600 h-2 rounded-full" style={{ width: "92%" }}></div>
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all"
+                    style={{ width: `${stats.completion_rate}%` }}
+                  ></div>
                 </div>
               </div>
 
+              {/* Client Satisfaction */}
               <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg" role="listitem">
                 <div className="flex justify-between items-center">
                   <span className="font-medium">Client Satisfaction</span>
@@ -163,11 +172,7 @@ export function DashboardContent({ userStats, statsLoading, statsError, onRetryS
                     {stats.averageRating.toFixed(1)}/5
                   </span>
                 </div>
-                <div
-                  className="flex items-center mt-1"
-                  role="img"
-                  aria-label={`${stats.averageRating.toFixed(1)} star rating`}
-                >
+                <div className="flex items-center mt-1" role="img" aria-label={`${stats.averageRating} star rating`}>
                   {[...Array(5)].map((_, i) => (
                     <Star
                       key={i}
@@ -180,6 +185,7 @@ export function DashboardContent({ userStats, statsLoading, statsError, onRetryS
                 </div>
               </div>
 
+              {/* Monthly Growth */}
               <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-lg" role="listitem">
                 <div className="flex justify-between items-center">
                   <span className="font-medium">Monthly Growth</span>

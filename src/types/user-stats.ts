@@ -31,6 +31,7 @@ export interface UserStats {
   total_reviews: number
   avg_rating: number
   growth_this_month: number
+  completion_rate: number
   recent_projects: {
     id: string
     name: string

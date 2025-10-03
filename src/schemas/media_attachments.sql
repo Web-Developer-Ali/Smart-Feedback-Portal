@@ -6,8 +6,8 @@ CREATE TABLE media_attachments (
 
   -- Relationships
   milestone_id UUID NOT NULL REFERENCES milestones(id) ON DELETE CASCADE,
-  project_id  UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-  uploaded_by UUID REFERENCES users(id) ON DELETE SET NULL, -- use users for consistency
+  project_id  UUID NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+  uploaded_by UUID REFERENCES users(id) ON DELETE SET NULL,
 
   -- File metadata
   public_ids TEXT[] DEFAULT '{}', -- store multiple external IDs (e.g., Cloudinary, S3)

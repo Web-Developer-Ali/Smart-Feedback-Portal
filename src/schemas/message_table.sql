@@ -11,7 +11,7 @@ CREATE TABLE messages (
   content TEXT NOT NULL CHECK (char_length(trim(content)) BETWEEN 1 AND 2000),
 
   -- Relationships
-  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES project(id) ON DELETE CASCADE,
   milestone_id UUID REFERENCES milestones(id) ON DELETE CASCADE,
 
   -- Timestamps

@@ -32,6 +32,7 @@ export interface ProjectsStatsProps {
 }
 
 export interface Review {
+  milestone_id?: string | null;
   id: string;
   project_name: string;
   client_name: string;

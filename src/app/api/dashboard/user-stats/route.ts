@@ -53,7 +53,6 @@ export async function GET() {
         { status: 500 }
       );
     }
-
     const data = result.rows[0].stats;
 
     // Format dates safely in recent projects
@@ -69,7 +68,6 @@ export async function GET() {
         })
       );
     }
-
     return NextResponse.json(data, {
       headers: {
         "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30",

@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { MessageSquare, Calendar, Loader2 } from "lucide-react";
+import { MessageSquare, Calendar, Loader2, Package, Target } from "lucide-react";
 import { Star } from "lucide-react";
 import { Pagination, Review } from "@/types/dashboard";
 
@@ -121,6 +121,7 @@ export function ReviewsList({
       </div>
     );
   }
+
   return (
     <>
       <div className="space-y-6">
@@ -154,6 +155,25 @@ export function ReviewsList({
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
+                      {/* Review Type Badge */}
+                      <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
+                        review.milestone_id 
+                          ? 'bg-blue-100 text-blue-700' 
+                          : 'bg-purple-100 text-purple-700'
+                      }`}>
+                        {review.milestone_id ? (
+                          <>
+                            <Target className="h-3 w-3" />
+                            <span>Milestone Review</span>
+                          </>
+                        ) : (
+                          <>
+                            <Package className="h-3 w-3" />
+                            <span>Project Review</span>
+                          </>
+                        )}
+                      </div>
+                      
                       <div className="flex items-center gap-1 bg-amber-50 px-3 py-1 rounded-full">
                         {Array.from({ length: 5 }).map((_, i) => (
                           <Star
@@ -180,9 +200,11 @@ export function ReviewsList({
                     &quot;{review.review}&quot;
                   </blockquote>
 
-                  <div className="flex items-center gap-1 text-sm text-slate-500 bg-slate-50 px-3 py-1 rounded-full w-fit">
-                    <Calendar className="h-4 w-4" />
-                    <span>{review.created_at}</span>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 text-sm text-slate-500">
+                    <div className="flex items-center gap-1 bg-slate-50 px-3 py-1 rounded-full w-fit">
+                      <Calendar className="h-4 w-4" />
+                      <span>{review.created_at}</span>
+                    </div>
                   </div>
                 </div>
               </div>

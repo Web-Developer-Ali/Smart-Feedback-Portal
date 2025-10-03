@@ -3,9 +3,9 @@ import { notFound } from "next/navigation"
 import ProjectDetailClient from "./project-detail-client"
 
 interface Props {
-  params: Promise<{
+  params: {
     projectId: string
-  }>
+  }
 }
 
 // Viewport configuration moved from metadata
@@ -23,8 +23,8 @@ function generateStructuredData(data: object): string {
 }
 
 // Enhanced metadata generation
-export async function generateMetadata(props: Props): Promise<Metadata> {
-  const { projectId } = await props.params
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { projectId } = await params;
 
   if (!projectId || projectId.length < 3) {
     notFound()
@@ -126,7 +126,7 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 }
 
 export default async function ProjectDetailPage({ params }: Props) {
-  const { projectId } = await params
+  const { projectId } = await params;
 
   // Validate project ID format
   if (!projectId || projectId.length < 3) {

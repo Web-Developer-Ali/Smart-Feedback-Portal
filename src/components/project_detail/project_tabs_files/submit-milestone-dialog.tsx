@@ -19,52 +19,59 @@ import {
   FileText,
   X,
   AlertCircle,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import type { Milestone } from "@/types/api-projectDetails";
-import {
-  submitMilestoneSchema,
-} from "./validation-schemas";
+import { submitMilestoneSchema } from "./validation-schemas";
+import { uploadFilesToS3WithRetry, type UploadProgress } from "@/lib/utils/uploadFilesToS3"; // Adjust import path as needed
 import z from "zod";
 
 interface SubmitMilestoneDialogProps {
   milestone: Milestone | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  isSubmitting: boolean;
+  onSuccess?: () => void;
 }
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+interface FileUploadProgress {
+  file: File;
+  status: 'pending' | 'uploading' | 'completed' | 'error';
+  error?: string;
+}
+
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const ACCEPTED_FILE_TYPES = [
-     'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-  'application/pdf', 
-  'application/msword', 
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/zip',
-  'text/plain'
+  "image/jpeg", "image/png", "image/gif", "image/webp",
+  "application/pdf", "application/msword", 
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel", 
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/zip", "text/plain",
 ];
 
 export default function SubmitMilestoneDialog({
   milestone,
   open,
   onOpenChange,
-  isSubmitting,
+  onSuccess
 }: SubmitMilestoneDialogProps) {
   const [submissionNotes, setSubmissionNotes] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [fileProgress, setFileProgress] = useState<Map<string, FileUploadProgress>>(new Map());
+  const [overallProgress, setOverallProgress] = useState<UploadProgress | null>(null);
   const [errors, setErrors] = useState<{ notes?: string; files?: string }>({});
   const [isDragging, setIsDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState<{success: boolean; successful: number; failed: number} | null>(null);
 
   const validateFile = (file: File): { valid: boolean; error?: string } => {
     if (file.size > MAX_FILE_SIZE) {
       return { valid: false, error: `File ${file.name} exceeds 20MB limit` };
     }
-
     if (!ACCEPTED_FILE_TYPES.includes(file.type)) {
       return { valid: false, error: `File type not supported: ${file.name}` };
     }
-
     return { valid: true };
   };
 
@@ -77,6 +84,10 @@ export default function SubmitMilestoneDialog({
       const validation = validateFile(file);
       if (validation.valid) {
         validFiles.push(file);
+        setFileProgress(prev => new Map(prev.set(file.name, {
+          file,
+          status: 'pending'
+        })));
       } else if (validation.error) {
         newErrors.push(validation.error);
       }
@@ -98,13 +109,12 @@ export default function SubmitMilestoneDialog({
     if (files && files.length > 0) {
       handleFiles(files);
     }
-    event.target.value = ""; // Reset input to allow selecting same files again
+    event.target.value = "";
   };
 
   const handleFileDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setIsDragging(false);
-
     const files = event.dataTransfer.files;
     if (files && files.length > 0) {
       handleFiles(files);
@@ -122,7 +132,13 @@ export default function SubmitMilestoneDialog({
   };
 
   const removeFile = (index: number) => {
+    const fileToRemove = selectedFiles[index];
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    setFileProgress(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(fileToRemove.name);
+      return newMap;
+    });
     if (errors.files) {
       setErrors((prev) => ({ ...prev, files: undefined }));
     }
@@ -130,7 +146,6 @@ export default function SubmitMilestoneDialog({
 
   const validateForm = (): boolean => {
     try {
-      // Convert File objects to validation schema format
       const filesForValidation = selectedFiles.map((file) => ({
         name: file.name,
         size: file.size,
@@ -163,11 +178,55 @@ export default function SubmitMilestoneDialog({
     if (!validateForm() || !milestone) return;
 
     try {
-      // Pass the actual File objects to the onSubmit handler
+      setUploading(true);
+      setUploadResult(null);
+      setOverallProgress({ total: selectedFiles.length, completed: 0, status: 'preparing', failedFiles: []});
 
-      handleClose();
+      // Use the imported upload function
+      const result = await uploadFilesToS3WithRetry(
+        milestone.id,
+        selectedFiles,
+        submissionNotes,
+        3, // maxRetries
+        (progress) => {
+          setOverallProgress(progress);
+
+          // Update individual file status based on overall progress
+          if (progress.status === 'completed') {
+            setFileProgress(prev => {
+              const newMap = new Map();
+              selectedFiles.forEach(file => {
+                newMap.set(file.name, { file, status: 'completed' });
+              });
+              return newMap;
+            });
+          }
+        }
+      );
+      setUploadResult({
+        success: result.success,
+        successful: result.successful,
+        failed: result.failed
+      });
+
+      if (result.success) {
+        onSuccess?.();
+        // TODO: Submit milestone with notes if needed
+        setTimeout(() => handleClose(), 2000);
+      } else {
+        setErrors(prev => ({ 
+          ...prev, 
+          files: `Upload failed: ${result.error}` 
+        }));
+      }
     } catch (error) {
       console.error("Submission failed:", error);
+      setErrors((prev) => ({ 
+        ...prev, 
+        files: error instanceof Error ? error.message : "Upload failed" 
+      }));
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -176,8 +235,12 @@ export default function SubmitMilestoneDialog({
     setTimeout(() => {
       setSubmissionNotes("");
       setSelectedFiles([]);
+      setFileProgress(new Map());
+      setOverallProgress(null);
       setErrors({});
       setIsDragging(false);
+      setUploading(false);
+      setUploadResult(null);
     }, 300);
   };
 
@@ -187,6 +250,36 @@ export default function SubmitMilestoneDialog({
     const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
+
+  const getStatusIcon = (status: FileUploadProgress['status']) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle2 className="h-4 w-4 text-green-600" />;
+      case 'error':
+        return <AlertTriangle className="h-4 w-4 text-red-600" />;
+      case 'uploading':
+        return <RefreshCw className="h-4 w-4 text-blue-600 animate-spin" />;
+      default:
+        return <FileText className="h-4 w-4 text-gray-400" />;
+    }
+  };
+
+  const getOverallStatusText = () => {
+    if (!overallProgress) return null;
+    
+    switch (overallProgress.status) {
+      case 'preparing':
+        return 'Preparing files...';
+      case 'recording':
+        return `Recording files... (${overallProgress.completed}/${overallProgress.total})`;
+      case 'completed':
+        return 'Upload completed!';
+      case 'error':
+        return 'Upload failed';
+      default:
+        return null;
+    }
   };
 
   return (
@@ -205,21 +298,13 @@ export default function SubmitMilestoneDialog({
         <div className="space-y-6">
           {/* Submission Notes */}
           <div className="space-y-2">
-            <Label htmlFor="notes" className="flex items-center gap-1">
-              Submission Notes <span className="text-red-500">*</span>
-            </Label>
+            <Label htmlFor="submission-notes">Submission Notes</Label>
             <Textarea
-              id="notes"
-              placeholder="Describe what you've completed, include any important notes for the client, and summarize the deliverables..."
+              id="submission-notes"
+              placeholder="Describe what you're submitting for this milestone..."
               value={submissionNotes}
-              onChange={(e) => {
-                setSubmissionNotes(e.target.value);
-                if (errors.notes)
-                  setErrors((prev) => ({ ...prev, notes: undefined }));
-              }}
-              rows={4}
-              className="resize-none"
-              aria-invalid={!!errors.notes}
+              onChange={(e) => setSubmissionNotes(e.target.value)}
+              className="min-h-[100px] resize-vertical"
             />
             {errors.notes && (
               <p className="text-sm text-red-600 flex items-center gap-1">
@@ -229,65 +314,74 @@ export default function SubmitMilestoneDialog({
             )}
           </div>
 
-          {/* File Upload Section */}
-          <div className="space-y-2">
-            <Label>Upload Deliverables (Optional)</Label>
-
-            {/* File Drop Zone */}
+          {/* File Upload Area */}
+          <div className="space-y-3">
+            <Label>Attach Files</Label>
+            
+            {/* Drag & Drop Zone */}
             <div
-              className={`border-2 border-dashed rounded-xl p-6 text-center transition-all duration-200 cursor-pointer ${
+              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
                 isDragging
-                  ? "border-blue-400 bg-blue-50 scale-105"
-                  : errors.files
-                  ? "border-red-300 bg-red-50"
-                  : "border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50"
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-gray-300 hover:border-gray-400"
               }`}
               onDrop={handleFileDrop}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onClick={() => document.getElementById("file-input")?.click()}
             >
-              <Upload
-                className={`h-12 w-12 mx-auto mb-3 ${
-                  isDragging
-                    ? "text-blue-500"
-                    : errors.files
-                    ? "text-red-400"
-                    : "text-gray-400"
-                }`}
-              />
-
-              <div className="space-y-1">
-                <p
-                  className={`text-sm font-medium ${
-                    isDragging
-                      ? "text-blue-700"
-                      : errors.files
-                      ? "text-red-700"
-                      : "text-gray-700"
-                  }`}
-                >
-                  {isDragging ? "Drop files here" : "Drag and drop files here"}
-                </p>
-                <p className="text-xs text-gray-500">
-                  or click to browse your files
-                </p>
-                <p className="text-xs text-gray-400 mt-2">
-                  Max file size: 30MB • Supported formats: JPG, PNG, GIF, WebP,
-                  PDF, DOC, DOCX, XLS, XLSX, ZIP, TXT
-                </p>
-              </div>
-
               <input
                 id="file-input"
                 type="file"
                 multiple
+                accept={ACCEPTED_FILE_TYPES.join(",")}
                 onChange={handleFileSelect}
                 className="hidden"
-                accept=".pdf,.doc,.docx,.zip,.jpg,.jpeg,.png,.gif,.txt"
               />
+              <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+              <p className="text-sm text-gray-600">
+                Drag and drop files here, or click to select
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Maximum file size: 20MB • Supported formats: Images, PDF, Word, Excel, ZIP, Text
+              </p>
             </div>
 
+            {/* Overall Progress */}
+            {overallProgress && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>{getOverallStatusText()}</span>
+                  <span>{overallProgress.completed}/{overallProgress.total} files</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="h-2 rounded-full bg-blue-600 transition-all duration-300"
+                    style={{ width: `${(overallProgress.completed / overallProgress.total) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Upload Result */}
+            {uploadResult && (
+              <div className={`p-3 rounded-lg ${
+                uploadResult.success 
+                  ? 'bg-green-50 border border-green-200' 
+                  : 'bg-red-50 border border-red-200'
+              }`}>
+                <p className={`text-sm ${
+                  uploadResult.success ? 'text-green-800' : 'text-red-800'
+                }`}>
+                  {uploadResult.success 
+                    ? `✅ Successfully uploaded ${uploadResult.successful} file(s)`
+                    : `❌ Upload failed: ${uploadResult.successful} successful, ${uploadResult.failed} failed`
+                  }
+                </p>
+              </div>
+            )}
+
+            {/* Error Message */}
             {errors.files && (
               <p className="text-sm text-red-600 flex items-center gap-1">
                 <AlertCircle className="h-4 w-4" />
@@ -297,48 +391,43 @@ export default function SubmitMilestoneDialog({
 
             {/* Selected Files List */}
             {selectedFiles.length > 0 && (
-              <div className="mt-4 space-y-3">
-                <Label className="flex items-center gap-2">
-                  Selected Files
-                  <span className="text-sm font-normal text-gray-500">
-                    ({selectedFiles.length} file
-                    {selectedFiles.length !== 1 ? "s" : ""})
-                  </span>
-                </Label>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {selectedFiles.map((file, index) => (
-                    <div
-                      key={`${file.name}-${index}-${file.lastModified}`}
-                      className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg group hover:border-blue-200 hover:bg-blue-50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="p-2 bg-blue-100 rounded-lg flex-shrink-0">
-                          <FileText className="h-4 w-4 text-blue-600" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {file.name}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {formatFileSize(file.size)} •{" "}
-                            {file.type.split("/")[1]?.toUpperCase() || "FILE"}
-                          </p>
+              <div className="space-y-3">
+                <p className="text-sm font-medium">Selected Files:</p>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {selectedFiles.map((file, index) => {
+                    const progress = fileProgress.get(file.name);
+                    
+                    return (
+                      <div
+                        key={index}
+                        className="p-3 bg-gray-50 rounded-lg border"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            {getStatusIcon(progress?.status || 'pending')}
+                            <span className="text-sm truncate">{file.name}</span>
+                            <span className="text-xs text-gray-500 flex-shrink-0">
+                              ({formatFileSize(file.size)})
+                            </span>
+                          </div>
+                          {!uploading && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeFile(index);
+                              }}
+                              className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-red-50 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeFile(index);
-                        }}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -350,19 +439,19 @@ export default function SubmitMilestoneDialog({
             type="button"
             variant="outline"
             onClick={handleClose}
-            disabled={isSubmitting}
+            disabled={uploading}
           >
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={isSubmitting || !submissionNotes.trim()}
+            disabled={uploading || !submissionNotes.trim() || selectedFiles.length === 0}
             className="bg-blue-600 hover:bg-blue-700 min-w-32 relative"
           >
-            {isSubmitting ? (
+            {uploading ? (
               <>
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Submitting...
+                Uploading...
               </>
             ) : (
               <>

@@ -66,7 +66,6 @@ export function ReviewsPageClient() {
         }
       } catch (err: unknown) {
         if (axios.isCancel(err)) {
-          console.log("Request canceled:", err.message);
           return;
         } else if (
           (err as { name?: string }).name === "AbortError" ||

@@ -10,16 +10,16 @@ import { toast } from "sonner"
 import { Star, Loader2, CheckCircle, MessageSquare, AlertCircle } from "lucide-react"
 import { z } from "zod"
 
-// Zod validation schema - match the API expected format
+// Zod validation schema - milestoneId is now optional
 const feedbackSchema = z.object({
   rating: z.number()
     .min(1, "Please select a rating")
     .max(5, "Rating must be between 1 and 5 stars"),
-  review: z.string()  // Changed from 'message' to 'review' to match API
-    .max(2000, "Review must be less than 100 characters")
+  review: z.string()
+    .max(2000, "Review must be less than 2000 characters")
     .optional()
     .or(z.literal("")),
-  milestoneId: z.string().uuid("Invalid milestone"),
+  milestoneId: z.string().uuid("Invalid milestone").optional().nullable(),
   projectId: z.string().uuid("Invalid project")
 })
 
@@ -32,7 +32,7 @@ export default function FeedbackForm() {
   const [hoveredRating, setHoveredRating] = useState(0)
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
   const [formData, setFormData] = useState({
-    review: ""  // Changed from 'message' to 'review'
+    review: ""
   })
 
   const params = useParams()
@@ -46,8 +46,8 @@ export default function FeedbackForm() {
     try {
       feedbackSchema.parse({
         rating,
-        review: formData.review,  // Changed from message to review
-        milestoneId,
+        review: formData.review,
+        milestoneId: milestoneId || undefined, // Convert null to undefined
         projectId
       })
       setValidationErrors({})
@@ -102,10 +102,10 @@ export default function FeedbackForm() {
 
     try {
       const payload: FeedbackFormData = {
-        milestoneId: milestoneId!,
         projectId,
-        review: formData.review,  // Changed from message to review
+        review: formData.review,
         rating,
+        ...(milestoneId && { milestoneId }) // Only include milestoneId if it exists
       }
 
       const res = await fetch("/api/client/submit_review", {
@@ -121,11 +121,23 @@ export default function FeedbackForm() {
       }
 
       setSubmitted(true)
-      toast.success("Thank you for your feedback!")
+      
+      // Show appropriate success message based on whether it's a project or milestone review
+      if (milestoneId) {
+        toast.success("Thank you for your milestone feedback!")
+      } else {
+        toast.success("Thank you for your project feedback!")
+      }
       
       // Redirect after a short delay to show success message
       setTimeout(() => {
-        router.push(`/client/client-review/${projectId}`)
+        if (milestoneId) {
+          // Redirect to milestone review page or project page
+          router.push(`/client/client-review/${projectId}`)
+        } else {
+          // Redirect to project reviews page
+          router.push(`/client/client-review/${projectId}`)
+        }
       }, 2000)
 
     } catch (error) {
@@ -137,6 +149,28 @@ export default function FeedbackForm() {
     }
   }
 
+  // Get appropriate title and description based on whether it's a project or milestone review
+  const getFormTitle = () => {
+    if (milestoneId) {
+      return "Milestone Feedback"
+    }
+    return "Project Feedback"
+  }
+
+  const getFormDescription = () => {
+    if (milestoneId) {
+      return "We'd love to hear about your experience with this specific milestone."
+    }
+    return "We'd love to hear about your overall experience with this project."
+  }
+
+  const getPlaceholderText = () => {
+    if (milestoneId) {
+      return "Share your thoughts about this specific milestone..."
+    }
+    return "Share your overall thoughts about the project..."
+  }
+
   if (submitted) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-purple-50">
@@ -146,7 +180,12 @@ export default function FeedbackForm() {
               <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Thank You!</h2>
-            <p className="text-gray-600 mb-6">Your feedback has been submitted successfully.</p>
+            <p className="text-gray-600 mb-6">
+              {milestoneId 
+                ? "Your milestone feedback has been submitted successfully." 
+                : "Your project feedback has been submitted successfully."
+              }
+            </p>
             <div className="flex space-x-3">
               <Button 
                 variant="outline" 
@@ -159,7 +198,7 @@ export default function FeedbackForm() {
                 onClick={() => {
                   setSubmitted(false)
                   setRating(0)
-                  setFormData({ review: "" })  // Changed from message to review
+                  setFormData({ review: "" })
                 }}
                 className="flex-1"
               >
@@ -180,10 +219,15 @@ export default function FeedbackForm() {
             <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
               <MessageSquare className="w-8 h-8 text-white" />
             </div>
-            <CardTitle className="text-3xl font-bold">Share Your Feedback</CardTitle>
+            <CardTitle className="text-3xl font-bold">{getFormTitle()}</CardTitle>
             <CardDescription className="text-lg">
-              We&apos;d love to hear about your experience with this freelancer.
+              {getFormDescription()}
             </CardDescription>
+            {milestoneId && (
+              <div className="mt-2 text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-block">
+                Reviewing specific milestone
+              </div>
+            )}
           </CardHeader>
 
           <CardContent className="space-y-6">
@@ -233,24 +277,27 @@ export default function FeedbackForm() {
 
               {/* Message Section */}
               <div>
-                <Label htmlFor="review">Tell us more (optional)</Label>
+                <Label htmlFor="review">
+                  Tell us more (optional)
+                  {milestoneId && " - about this milestone"}
+                </Label>
                 <Textarea 
                   id="review" 
-                  name="review"  // Changed from message to review
-                  value={formData.review}  // Changed from message to review
+                  name="review"
+                  value={formData.review}
                   onChange={handleInputChange}
                   className="mt-2 min-h-[120px] resize-none"
-                  placeholder="Share your thoughts about the work delivered..."
+                  placeholder={getPlaceholderText()}
                   disabled={submitting}
                 />
-                {validationErrors.review && (  // Changed from message to review
+                {validationErrors.review && (
                   <div className="flex items-center gap-1 text-red-500 text-sm mt-1">
                     <AlertCircle className="w-4 h-4" />
-                    <span>{validationErrors.review}</span>  {/* Changed from message to review */}
+                    <span>{validationErrors.review}</span>
                   </div>
                 )}
                 <p className="text-xs text-gray-500 mt-1">
-                  {formData.review.length}/100 characters  {/* Changed from message to review */}
+                  {formData.review.length}/2000 characters
                 </p>
               </div>
 
@@ -267,7 +314,7 @@ export default function FeedbackForm() {
                     <div className="absolute inset-0 bg-white/20 rounded-md"></div>
                   </>
                 ) : (
-                  "Submit Feedback"
+                  `Submit ${milestoneId ? 'Milestone' : 'Project'} Feedback`
                 )}
               </Button>
 

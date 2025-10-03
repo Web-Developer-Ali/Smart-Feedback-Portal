@@ -1,5 +1,5 @@
+import { query } from "@/lib/db";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 
 // Validation schema
@@ -8,11 +8,10 @@ const approveMilestoneSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const supabase = createClient();
-  
   try {
-  const { searchParams } = new URL(request.url);
-  const milestoneId = searchParams.get('milestoneId');
+    const { searchParams } = new URL(request.url);
+    const milestoneId = searchParams.get('milestoneId');
+    
     if (!milestoneId) {
       return NextResponse.json(
         { error: "MilestoneId query parameter is required" },
@@ -33,48 +32,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get milestone data with project info
-    const { data: milestone, error: milestoneError } = await supabase
-      .from("milestones")
-      .select(`
-        *,
-        project:project_id (
-          id,
-          agency_id,
-          client_email
-        )
-      `)
-      .eq("id", milestoneId)
-      .single();
+    // Update milestone status using your query function
+    const updateResult = await query
+    (
+      `UPDATE milestones 
+       SET status = $1, updated_at = $2
+       WHERE id = $3
+       RETURNING *`,
+      ["approved", new Date().toISOString(), milestoneId]
+    );
 
-    if (milestoneError) {
-      console.error("Milestone fetch error:", milestoneError);
-      return NextResponse.json(
-        { error: "Milestone not found" },
-        { status: 404 }
-      );
-    }
-
-    if (!milestone) {
-      return NextResponse.json(
-        { error: "Milestone not found" },
-        { status: 404 }
-      );
-    }
-
-    // Update milestone status to approved
-    const { data: updatedMilestone, error: updateError } = await supabase
-      .from("milestones")
-      .update({ 
-        status: 'approved',
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", milestoneId)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error("Update error:", updateError);
+    if (!updateResult.rows.length) {
       return NextResponse.json(
         { error: "Milestone approval failed" },
         { status: 500 }
@@ -84,19 +52,12 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: "Milestone approved successfully",
-      milestone: updatedMilestone
+      milestone: updateResult.rows[0]
     });
 
   } catch (error: unknown) {
     console.error("API Error:", error);
-
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : "Internal server error";
-    
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+    const errorMessage = error instanceof Error ? error.message : "Internal server error";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

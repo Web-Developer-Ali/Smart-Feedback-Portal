@@ -7,14 +7,14 @@ DECLARE
     current_month_count INTEGER := 0;
     last_month_count INTEGER := 0;
 BEGIN
-    -- Current month count
+    -- Current month project count
     SELECT COUNT(*) 
     INTO current_month_count
     FROM project p 
     WHERE p.agency_id = p_agency_id
       AND p.created_at >= date_trunc('month', CURRENT_DATE);
 
-    -- Last month count
+    -- Last month project count
     SELECT COUNT(*) 
     INTO last_month_count
     FROM project p 
@@ -45,7 +45,9 @@ BEGIN
         SELECT 
             COUNT(DISTINCT p.id) AS total_projects,
             COUNT(r.id) AS total_reviews,
-            COALESCE(AVG(r.stars), 0) AS overall_avg_rating
+            COALESCE(AVG(r.stars), 0) AS overall_avg_rating,
+            COUNT(*) FILTER (WHERE p.status = 'completed') AS completed_projects,
+            COUNT(*) FILTER (WHERE r.stars >= 4) AS happy_reviews
         FROM project p
         LEFT JOIN reviews r ON r.project_id = p.id
         WHERE p.agency_id = p_agency_id
@@ -59,6 +61,16 @@ BEGIN
                 WHEN last_month_count = 0 
                     THEN CASE WHEN current_month_count > 0 THEN 100 ELSE 0 END
                 ELSE ROUND(((current_month_count - last_month_count) * 100.0) / last_month_count, 1)
+            END,
+        'completion_rate',
+            CASE 
+                WHEN tc.total_projects = 0 THEN 0
+                ELSE ROUND((tc.completed_projects::numeric / tc.total_projects) * 100, 1)
+            END,
+        'client_satisfaction',
+            CASE 
+                WHEN tc.total_reviews = 0 THEN 0
+                ELSE ROUND((tc.happy_reviews::numeric / tc.total_reviews) * 100, 1)
             END,
         'recent_projects', (
             SELECT COALESCE(

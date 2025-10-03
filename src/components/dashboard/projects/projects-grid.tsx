@@ -198,7 +198,6 @@ export function ProjectsGrid({
 
     return matchesSearch && matchesStatus && matchesType;
   });
-
   return (
     <>
       {/* Delete Confirmation Dialog */}
@@ -377,7 +376,7 @@ export function ProjectsGrid({
                   <div className="flex items-center gap-1 text-sm bg-green-50 text-green-700 px-2 py-1 rounded-full">
                     <DollarSign className="h-3 w-3" />
                     <span className="font-semibold">
-                      ${project.project_price?.toLocaleString() || "0"}
+                      {project.project_price?.toLocaleString() || "0"}
                     </span>
                   </div>
                   <div className="flex items-center gap-1 text-sm bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
@@ -393,7 +392,7 @@ export function ProjectsGrid({
                     <Star className="h-3 w-3 fill-current" />
                     <span className="text-sm font-medium">
                       {project.average_rating && project.average_rating > 0
-                        ? project.average_rating.toFixed(1)
+                        ? project.average_rating
                         : "No rating"}
                     </span>
                   </div>

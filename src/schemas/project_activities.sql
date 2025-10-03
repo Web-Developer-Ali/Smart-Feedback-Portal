@@ -5,7 +5,7 @@ CREATE TABLE project_activities (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
   -- Relationships
-  project_id   UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  project_id   UUID NOT NULL REFERENCES project(id) ON DELETE CASCADE,
   milestone_id UUID REFERENCES milestones(id) ON DELETE SET NULL,
   performed_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 

@@ -10,8 +10,8 @@ CREATE TABLE milestones (
   title TEXT NOT NULL CHECK (char_length(title) >= 3),
   description TEXT,
   duration_days INTEGER NOT NULL CHECK (duration_days > 0),
-  priority INTEGER DEFAULT 0 CHECK (priority >= 0);
-  starting_notes TEXT;
+  priority INTEGER DEFAULT 0 CHECK (priority >= 0),
+  starting_notes TEXT,
     -- Pricing
   milestone_price NUMERIC(10,2) NOT NULL CHECK (milestone_price >= 0),
   is_payment_cleared BOOLEAN NOT NULL DEFAULT FALSE,

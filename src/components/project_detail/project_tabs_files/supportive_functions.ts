@@ -7,7 +7,7 @@ import axios from "axios"
 
 // 🎨 Status color utility
 export const useStatusColor = () => {
-  return useCallback((status: Milestone["status"]) => {
+  return useCallback((status: string) => {
     switch (status) {
       case "approved":
         return "bg-emerald-100 text-emerald-800 border-emerald-200"

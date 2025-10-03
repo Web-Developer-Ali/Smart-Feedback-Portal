@@ -18,8 +18,7 @@ export default function ProjectDetailClient() {
   const [error, setError] = useState<string | null>(null)
   const [retrying, setRetrying] = useState(false)
 
-  const projectId = params.projectId as string
-
+  const projectId = params.projectId as string;
   const fetchProjectData = useCallback(async () => {
     try {
       setLoading(true)
@@ -28,7 +27,6 @@ export default function ProjectDetailClient() {
       if (!projectId) {
         throw new Error("Project ID is required")
       }
-
       // Use your actual API endpoint
       const response = await fetch(`/api/project/get_project_details?projectId=${projectId}`, {
         method: "GET",

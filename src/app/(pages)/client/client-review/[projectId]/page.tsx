@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { RefreshCw, XCircle } from "lucide-react"
 import { toast } from "sonner"
 import axios, { AxiosError } from "axios"
@@ -23,7 +23,7 @@ export default function ClientReviewPage() {
   const projectId = params?.projectId as string
 
   const projectData = useMemo(() => project, [project])
-
+  const router = useRouter();
   const fetchProject = useCallback(async () => {
     if (!projectId) {
       setError("Project ID is required")
@@ -161,7 +161,7 @@ export default function ClientReviewPage() {
                 </CardHeader>
                 <CardContent>
                   <Button
-                    onClick={() => (window.location.href = `/feedback/${projectData.id}`)}
+                    onClick={() => (router.push(`/client/feedback/${projectData.id}`))}
                     className="bg-green-600 hover:bg-green-700 text-white"
                   >
                     Give Project Feedback
