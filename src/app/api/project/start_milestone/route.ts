@@ -222,12 +222,19 @@ export async function POST(request: Request) {
       },
     });
   } catch (error: unknown) {
-    console.error("Start Milestone API Error:", error);
+  console.error("Start Milestone API Error:", error);
 
-    const status = (error as any)?.status ?? 500;
-    const message =
-      error instanceof Error ? error.message : "Internal server error";
+  const status =
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    typeof (error as { status?: number }).status === "number"
+      ? (error as { status: number }).status
+      : 500;
 
-    return NextResponse.json({ error: message }, { status });
-  }
+  const message =
+    error instanceof Error ? error.message : "Internal server error";
+
+  return NextResponse.json({ error: message }, { status });
+}
 }

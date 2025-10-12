@@ -1,4 +1,4 @@
-import axios, { AxiosError, AxiosResponse } from 'axios';
+import axios, { AxiosError } from "axios";
 
 export type UploadProgress = {
   total: number;
@@ -45,14 +45,14 @@ const UPLOAD_CONFIG = {
 const apiClient = axios.create({
   timeout: UPLOAD_CONFIG.timeout,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
 // Request interceptor for auth tokens
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem("authToken");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -62,21 +62,25 @@ apiClient.interceptors.request.use(
 );
 
 export async function uploadFilesToS3WithRetry(
-  milestoneId: string, 
-  files: File[], 
+  milestoneId: string,
+  files: File[],
   submissionNotes?: string,
   maxRetries = UPLOAD_CONFIG.maxRetries,
   onProgress?: (progress: UploadProgress) => void
 ): Promise<UploadResult> {
+  console.log(submissionNotes);
   const startTime = Date.now();
   const failedFiles: Array<{ file: File; error: string }> = [];
   let completedCount = 0;
   let currentFileProgress = 0;
   let globalExpiryTime: Date | null = null;
 
-  const updateProgress = (status: UploadProgress['status'], currentFile?: string) => {
+  const updateProgress = (
+    status: UploadProgress["status"],
+    currentFile?: string
+  ) => {
     let timeRemaining: number | undefined;
-    
+
     if (globalExpiryTime) {
       const now = new Date();
       const remainingMs = globalExpiryTime.getTime() - now.getTime();
@@ -94,21 +98,26 @@ export async function uploadFilesToS3WithRetry(
     });
   };
 
-  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  const delay = (ms: number) =>
+    new Promise((resolve) => setTimeout(resolve, ms));
 
   const getErrorMessage = (error: unknown): string => {
     if (error instanceof AxiosError) {
-      if (error.code === 'NETWORK_ERROR' || error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
-        return 'CORS error: Check S3 bucket CORS configuration';
+      if (
+        error.code === "NETWORK_ERROR" ||
+        error.message.includes("CORS") ||
+        error.message.includes("Failed to fetch")
+      ) {
+        return "CORS error: Check S3 bucket CORS configuration";
       }
-      return error.response?.data?.message || error.message || 'Network error';
+      return error.response?.data?.message || error.message || "Network error";
     }
-    return error instanceof Error ? error.message : 'Unknown error occurred';
+    return error instanceof Error ? error.message : "Unknown error occurred";
   };
 
   const checkTimeRemaining = (): number => {
     if (!globalExpiryTime) return Infinity;
-    
+
     const now = new Date();
     const remainingMs = globalExpiryTime.getTime() - now.getTime();
     return Math.floor(remainingMs / 1000);
@@ -119,7 +128,9 @@ export async function uploadFilesToS3WithRetry(
     return remaining < UPLOAD_CONFIG.bufferTime;
   };
 
-  const getPresignedUrl = async (file: File): Promise<PresignedResponse['data']> => {
+  const getPresignedUrl = async (
+    file: File
+  ): Promise<PresignedResponse["data"]> => {
     try {
       const response = await apiClient.post<PresignedResponse>(
         "/api/file_handling/get_presignUrl",
@@ -128,11 +139,12 @@ export async function uploadFilesToS3WithRetry(
           type: file.type,
           size: file.size,
           milestoneId,
+          mode: "write",
         }
       );
 
       if (!response.data.success || !response.data.data?.url) {
-        throw new Error('Invalid presigned URL response');
+        throw new Error("Invalid presigned URL response");
       }
 
       // Set global expiry time if not set (use the first presigned URL's expiry)
@@ -146,40 +158,53 @@ export async function uploadFilesToS3WithRetry(
     }
   };
 
-  const uploadToS3 = async (file: File, uploadUrl: string, fileName: string): Promise<void> => {
+  const uploadToS3 = async (
+    file: File,
+    uploadUrl: string,
+    fileName: string
+  ): Promise<void> => {
     // Check if we have enough time before starting upload
     const timeRemaining = checkTimeRemaining();
     if (timeRemaining < UPLOAD_CONFIG.bufferTime) {
-      throw new Error(`Insufficient time remaining (${timeRemaining}s) to upload file. Token expiring soon.`);
+      throw new Error(
+        `Insufficient time remaining (${timeRemaining}s) to upload file. Token expiring soon.`
+      );
     }
 
     try {
       // Use fetch instead of axios to avoid unsafe header issues and better CORS handling
       const response = await fetch(uploadUrl, {
-        method: 'PUT',
+        method: "PUT",
         body: file,
         // No custom headers - let browser set them automatically to avoid preflight
       });
 
       if (!response.ok) {
-        const errorText = await response.text().catch(() => 'No error details');
-        console.error('S3 upload failed:', {
+        const errorText = await response.text().catch(() => "No error details");
+        console.error("S3 upload failed:", {
           status: response.status,
           statusText: response.statusText,
-          details: errorText
+          details: errorText,
         });
         throw new Error(`S3 upload failed with status: ${response.status}`);
       }
     } catch (error) {
       console.error(`Upload error for ${fileName}:`, error);
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        throw new Error('CORS error: Check S3 bucket CORS configuration. Make sure CORS is properly set for your domain.');
+      if (
+        error instanceof TypeError &&
+        error.message.includes("Failed to fetch")
+      ) {
+        throw new Error(
+          "CORS error: Check S3 bucket CORS configuration. Make sure CORS is properly set for your domain."
+        );
       }
       throw error;
     }
   };
 
-  const recordUploads = async (successfulUploads: Array<{ key: string; name: string; file: File }>) => {
+  const recordUploads = async (
+    successfulUploads: Array<{ key: string; name: string; file: File }>
+  ) => {
     const response = await apiClient.post(
       "/api/file_handling/update_file_uploaded",
       {
@@ -189,35 +214,41 @@ export async function uploadFilesToS3WithRetry(
           name,
           size: file.size,
           type: file.type,
-          submissionNotes,
           lastModified: file.lastModified,
         })),
+        submissionNotes,
       }
     );
 
     if (response.status !== 200) {
-      throw new Error(`Database recording failed with status: ${response.status}`);
+      throw new Error(
+        `Database recording failed with status: ${response.status}`
+      );
     }
   };
 
-  const processFile = async (file: File): Promise<{ key: string; name: string; file: File } | null> => {
+  const processFile = async (
+    file: File
+  ): Promise<{ key: string; name: string; file: File } | null> => {
     try {
       // Validate file before upload
       if (!file.name || file.size === 0) {
-        throw new Error('Invalid file');
+        throw new Error("Invalid file");
       }
 
       if (file.size > UPLOAD_CONFIG.maxFileSize) {
-        throw new Error(`File size exceeds ${UPLOAD_CONFIG.maxFileSize / 1024 / 1024}MB limit`);
+        throw new Error(
+          `File size exceeds ${UPLOAD_CONFIG.maxFileSize / 1024 / 1024}MB limit`
+        );
       }
 
-      updateProgress('uploading', file.name);
+      updateProgress("uploading", file.name);
       currentFileProgress = 0;
 
       // Get presigned URL with retry logic
       let presignedData;
       let retries: number = maxRetries;
-      
+
       while (retries >= 0) {
         try {
           presignedData = await getPresignedUrl(file);
@@ -230,22 +261,22 @@ export async function uploadFilesToS3WithRetry(
       }
 
       if (!presignedData) {
-        throw new Error('Failed to get presigned URL after retries');
+        throw new Error("Failed to get presigned URL after retries");
       }
 
       // Upload to S3 with retry logic
       retries = maxRetries as number;
-      
+
       while (retries >= 0) {
         try {
           await uploadToS3(file, presignedData.url, file.name);
           break;
         } catch (error) {
           // Don't retry if we're running out of time or it's a CORS error
-          if (isTimeCritical() || getErrorMessage(error).includes('CORS')) {
+          if (isTimeCritical() || getErrorMessage(error).includes("CORS")) {
             throw error;
           }
-          
+
           if (retries === 0) throw error;
           retries--;
           await delay(UPLOAD_CONFIG.retryDelay * (maxRetries - retries));
@@ -254,12 +285,12 @@ export async function uploadFilesToS3WithRetry(
 
       completedCount++;
       currentFileProgress = 100;
-      updateProgress('uploading', file.name);
+      updateProgress("uploading", file.name);
 
-      return { 
-        key: presignedData.key, 
-        name: file.name, 
-        file 
+      return {
+        key: presignedData.key,
+        name: file.name,
+        file,
       };
     } catch (error) {
       const errorMessage = getErrorMessage(error);
@@ -272,31 +303,38 @@ export async function uploadFilesToS3WithRetry(
   try {
     // Validate input
     if (!milestoneId || !files.length) {
-      throw new Error('Invalid input: milestoneId and files are required');
+      throw new Error("Invalid input: milestoneId and files are required");
     }
 
-    updateProgress('preparing');
+    updateProgress("preparing");
 
     // Process files with concurrency control and time awareness
-    const successfulUploads: Array<{ key: string; name: string; file: File }> = [];
+    const successfulUploads: Array<{ key: string; name: string; file: File }> =
+      [];
     const queue = [...files];
-    
+
     while (queue.length > 0 && !isTimeCritical()) {
       const batch = queue.splice(0, UPLOAD_CONFIG.maxConcurrentUploads);
       const batchResults = await Promise.all(
-        batch.map(file => processFile(file))
+        batch.map((file) => processFile(file))
       );
-      
-      successfulUploads.push(...batchResults.filter((result): result is NonNullable<typeof result> => result !== null));
+
+      successfulUploads.push(
+        ...batchResults.filter(
+          (result): result is NonNullable<typeof result> => result !== null
+        )
+      );
 
       // Check if we need to stop due to time constraints
       if (isTimeCritical() && queue.length > 0) {
-        console.warn(`Stopping uploads due to time constraints. ${queue.length} files remaining.`);
+        console.warn(
+          `Stopping uploads due to time constraints. ${queue.length} files remaining.`
+        );
         // Mark remaining files as failed due to time constraints
-        queue.forEach(file => {
-          failedFiles.push({ 
-            file, 
-            error: `Upload cancelled - insufficient time remaining (${checkTimeRemaining()}s)` 
+        queue.forEach((file) => {
+          failedFiles.push({
+            file,
+            error: `Upload cancelled - insufficient time remaining (${checkTimeRemaining()}s)`,
           });
         });
         break;
@@ -305,11 +343,11 @@ export async function uploadFilesToS3WithRetry(
 
     // Record successful uploads in database if we have time
     if (successfulUploads.length > 0 && !isTimeCritical()) {
-      updateProgress('recording');
+      updateProgress("recording");
       await recordUploads(successfulUploads);
     }
 
-    updateProgress('completed');
+    updateProgress("completed");
 
     const totalTime = Date.now() - startTime;
 
@@ -322,13 +360,12 @@ export async function uploadFilesToS3WithRetry(
       failedFiles,
       totalTime,
     };
-
   } catch (error) {
     const errorMessage = getErrorMessage(error);
     console.error("Upload process failed:", error);
-    
-    updateProgress('error');
-    
+
+    updateProgress("error");
+
     const totalTime = Date.now() - startTime;
 
     return {
@@ -345,7 +382,10 @@ export async function uploadFilesToS3WithRetry(
 }
 
 // Utility function to estimate upload time based on file sizes and network speed
-export function estimateUploadTime(files: File[], networkSpeedMbps: number = 5): number {
+export function estimateUploadTime(
+  files: File[],
+  networkSpeedMbps: number = 5
+): number {
   const totalSizeBytes = files.reduce((sum, file) => sum + file.size, 0);
   const totalSizeBits = totalSizeBytes * 8;
   const timeSeconds = totalSizeBits / (networkSpeedMbps * 1024 * 1024);
@@ -354,17 +394,22 @@ export function estimateUploadTime(files: File[], networkSpeedMbps: number = 5):
 
 // Utility to check if upload is feasible within token expiry
 export function canUploadWithinTime(
-  files: File[], 
+  files: File[],
   tokenExpiresIn: number, // seconds
   networkSpeedMbps: number = 5
-): { feasible: boolean; estimatedTime: number; timeRemaining: number; margin: number } {
+): {
+  feasible: boolean;
+  estimatedTime: number;
+  timeRemaining: number;
+  margin: number;
+} {
   const estimatedTime = estimateUploadTime(files, networkSpeedMbps);
   const margin = tokenExpiresIn - estimatedTime - UPLOAD_CONFIG.bufferTime;
-  
+
   return {
     feasible: margin > 0,
     estimatedTime,
     timeRemaining: tokenExpiresIn,
-    margin
+    margin,
   };
 }

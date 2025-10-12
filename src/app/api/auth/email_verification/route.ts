@@ -54,7 +54,15 @@ export async function POST(request: Request) {
       );
     }
 
-    if (new Date(profile.otp_expires_at) < now) {
+    const expiresAt = new Date(String(profile.otp_expires_at));
+    if (isNaN(expiresAt.getTime())) {
+      return NextResponse.json(
+        { success: false, message: "Invalid OTP expiry timestamp" },
+        { status: 400 }
+      );
+    }
+
+    if (expiresAt < now) {
       return NextResponse.json(
         { success: false, message: "OTP has expired" },
         { status: 410 }

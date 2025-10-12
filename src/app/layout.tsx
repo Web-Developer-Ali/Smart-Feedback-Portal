@@ -8,7 +8,7 @@ import { Providers } from "@/components/providers"
 const inter = Inter({
   subsets: ["latin"],
   display: "swap",
-  preload: true,
+  // Remove preload: true as next/font handles this automatically
   fallback: ["system-ui", "arial"],
 });
 
@@ -167,14 +167,7 @@ export default function RootLayout({
         <meta name="msapplication-TileColor" content="#2563eb" />
         <meta name="msapplication-config" content="/browserconfig.xml" />
 
-        {/* Performance hints */}
-        <link
-          rel="preload"
-          href="/fonts/inter-var.woff2"
-          as="font"
-          type="font/woff2"
-          crossOrigin="anonymous"
-        />
+        {/* REMOVED the manual font preload - next/font handles this automatically */}
 
         {/* Security headers */}
         <meta httpEquiv="X-Content-Type-Options" content="nosniff" />
@@ -208,11 +201,8 @@ export default function RootLayout({
             }),
           }}
         />
-        <style>{`
-html {
-  font-family: ${inter.style.fontFamily};
-}
-        `}</style>
+        
+        {/* Remove the manual style injection - next/font handles this */}
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">         
         <Providers>

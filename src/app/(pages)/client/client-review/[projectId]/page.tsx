@@ -155,9 +155,10 @@ export default function ClientReviewPage() {
                     <span>All Milestones Completed!</span>
                   </CardTitle>
                   <CardDescription className="text-green-700">
-                    Great work! All project milestones have been approved. We'd love to hear your overall feedback about
-                    this project.
-                  </CardDescription>
+                           Great work! All project milestones have been approved. We&apos;d love to hear your overall feedback about
+                           this project.
+                 </CardDescription>
+
                 </CardHeader>
                 <CardContent>
                   <Button

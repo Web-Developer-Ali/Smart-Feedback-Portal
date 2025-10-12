@@ -132,32 +132,6 @@ export function ProjectsHeader() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Mobile Quick Actions */}
-      <div className="lg:hidden mb-6">
-        <div className="grid grid-cols-2 gap-3">
-          <Button
-            variant="outline"
-            className="flex items-center gap-2 py-3 h-auto"
-            asChild
-          >
-            <Link href="/dashboard/projects?status=in_progress">
-              <TrendingUp className="h-4 w-4" />
-              <span className="text-sm">Active Projects</span>
-            </Link>
-          </Button>
-          <Button
-            variant="outline"
-            className="flex items-center gap-2 py-3 h-auto"
-            asChild
-          >
-            <Link href="/dashboard/projects/create">
-              <Plus className="h-4 w-4" />
-              <span className="text-sm">Quick Add</span>
-            </Link>
-          </Button>
-        </div>
-      </div>
     </>
   );
 }

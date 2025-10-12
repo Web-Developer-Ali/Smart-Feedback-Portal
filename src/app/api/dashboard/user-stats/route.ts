@@ -42,10 +42,9 @@ export async function GET() {
     const agencyId = userId;
 
     // Call the PostgreSQL function
-    const result = await query(
-      "SELECT get_complete_user_stats($1) as stats",
-      [agencyId]
-    );
+    const result = await query("SELECT get_complete_user_stats($1) as stats", [
+      agencyId,
+    ]);
 
     if (result.rowCount === 0 || !result.rows[0]?.stats) {
       return NextResponse.json(
@@ -53,22 +52,44 @@ export async function GET() {
         { status: 500 }
       );
     }
-    const data = result.rows[0].stats;
+    const rawStats = result.rows[0].stats;
 
-    // Format dates safely in recent projects
-    if (data?.recent_projects) {
-      data.recent_projects = data.recent_projects.map(
-        (project: { created_at: string | number | Date }) => ({
-          ...project,
-          created_at: new Date(project.created_at).toLocaleDateString("en-US", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          }),
-        })
+    if (typeof rawStats !== "object" || rawStats === null) {
+      return NextResponse.json(
+        { error: "Invalid stats format" },
+        { status: 500 }
       );
     }
-    return NextResponse.json(data, {
+
+    const stats = rawStats as {
+      recent_projects?: unknown;
+      [key: string]: unknown;
+    };
+
+    // Format dates safely in recent projects
+    if (Array.isArray(stats.recent_projects)) {
+      stats.recent_projects = stats.recent_projects.map((project) => {
+        if (project && typeof project === "object" && "created_at" in project) {
+          const p = project as Record<string, unknown>;
+          const created = p.created_at;
+          const createdStr =
+            created === undefined || created === null ? "" : String(created);
+
+          return {
+            ...p,
+            created_at: new Date(createdStr).toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+            }),
+          };
+        }
+
+        return project;
+      });
+    }
+
+    return NextResponse.json(stats, {
       headers: {
         "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30",
       },

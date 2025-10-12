@@ -165,21 +165,19 @@ export function BudgetTimelineStep({
             Project Budget (USD) *
           </Label>
           <div className="relative mt-2">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <span className="text-gray-500 sm:text-sm">$</span>
-            </div>
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"></div>
             <Input
-              id="budget" // Changed from "days" to "budget"
-              name="budget" // Changed from "days" to "budget"
+              id="budget"
+              name="budget"
               type="number"
-              min="100" // Minimum budget should be 100 as mentioned in the description
+              min="100"
               step="1"
               value={
                 formData.project_budget !== null ? formData.project_budget : ""
               }
               onChange={(e) => {
                 const value = e.target.value ? parseInt(e.target.value) : 0;
-                onInputChange("project_budget", value); // Changed from "estimated_days" to "project_budget"
+                onInputChange("project_budget", value);
               }}
               placeholder="1000"
               className={`mt-2 ${

@@ -1,3 +1,5 @@
+import Image from "next/image"
+
 interface PageHeaderProps {
   freelancerName: string
   freelancerAvatar: string
@@ -20,10 +22,12 @@ export function PageHeader({ freelancerName, freelancerAvatar }: PageHeaderProps
             </div>
           </div>
           <div className="flex items-center space-x-3">
-            <img
+            <Image
               src={freelancerAvatar || "/placeholder.svg"}
               alt={freelancerName}
-              className="w-10 h-10 rounded-full border-2 border-gray-200"
+              width={40}
+              height={40}
+              className="rounded-full border-2 border-gray-200 object-cover"
             />
             <div className="text-right">
               <p className="text-gray-900 font-medium">{freelancerName}</p>

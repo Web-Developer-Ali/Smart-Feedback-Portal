@@ -83,8 +83,8 @@ export async function GET(request: Request) {
       ? parseInt(ratingFilter) 
       : null;
 
-    // Call the PostgreSQL function
-    const { data, error } = await callRpcFunction('get_agency_reviews', {
+    // Call the PostgreSQL function (typed to ReviewsResponse so `data.reviews` is recognized)
+    const { data, error } = await callRpcFunction<ReviewsResponse>('get_agency_reviews', {
       agency_id: agencyId,
       rating_filter: ratingParam,
       page_number: page,
@@ -159,40 +159,36 @@ export async function GET(request: Request) {
 }
 
 // Helper function to call PostgreSQL RPC functions with multiple parameters
-async function callRpcFunction(functionName: string, params: Record<string, any>) {
+async function callRpcFunction<T>(
+  functionName: string,
+  params: Record<string, unknown>
+): Promise<{ data: T | null; error: unknown }> {
   try {
     // Build parameter placeholders and values array
     const paramNames = Object.keys(params);
-    const paramValues = paramNames.map(key => params[key]);
-    const placeholders = paramNames.map((_, index) => `$${index + 1}`).join(', ');
-    
-    // For functions returning JSON, we need to handle the result structure
+    const paramValues = paramNames.map((key) => params[key]);
+    const placeholders = paramNames.map((_, index) => `$${index + 1}`).join(", ");
+
     const result = await query(
       `SELECT * FROM ${functionName}(${placeholders})`,
       paramValues
     );
 
-    // The result structure depends on how your function returns data
-    // If it returns a single JSON object, it will be in the first row
     if (result.rows.length > 0) {
       const functionResult = result.rows[0];
-      
-      // Handle different possible return structures
+
       if (functionResult[functionName]) {
-        // If the function returns a named column
-        return { data: functionResult[functionName], error: null };
+        return { data: functionResult[functionName] as T, error: null };
       } else if (functionResult.json_build_object || functionResult.row_to_json) {
-        // If it returns a JSON object directly
-        return { data: functionResult, error: null };
+        return { data: functionResult as T, error: null };
       } else {
-        // Return the entire first row
-        return { data: functionResult, error: null };
+        return { data: functionResult as T, error: null };
       }
     }
-    
+
     return { data: null, error: null };
-  } catch (error) {
-    console.error('RPC call error:', error);
+  } catch (error: unknown) {
+    console.error("RPC call error:", error);
     return { data: null, error };
   }
 }

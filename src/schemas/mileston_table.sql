@@ -66,6 +66,11 @@ CREATE INDEX idx_milestones_pending_status
 CREATE INDEX idx_milestones_status_payment 
   ON milestones(status, is_payment_cleared);
 
+-- For milestone revenue queries
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_milestones_cleared_project 
+ON milestones(is_payment_cleared, project_id) 
+WHERE is_payment_cleared = true;
+
 -- Full-text search
 CREATE INDEX idx_milestones_search ON milestones USING GIN(search_vector);
 

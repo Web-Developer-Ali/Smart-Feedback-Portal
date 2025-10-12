@@ -46,6 +46,10 @@ CREATE INDEX idx_project_status ON project (status);
 CREATE INDEX idx_project_created_at ON project (created_at DESC);
 CREATE INDEX idx_project_search ON project USING GIN(search_vector);
 CREATE INDEX idx_project_archived ON project (is_archived);
+-- For project price aggregation
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_project_agency_price 
+ON project(agency_id, project_price) 
+WHERE is_archived = false AND project_price IS NOT NULL;
 
 -- =============================================
 -- Reusable Auto-update Trigger for updated_at

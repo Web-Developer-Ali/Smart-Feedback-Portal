@@ -2,9 +2,15 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { AnalyticsMetricsProps } from "@/types/analytics-types"
-import { Target, DollarSign, Star, Users } from "lucide-react"
+import { Target, DollarSign, Star, Users, TrendingUp } from "lucide-react"
 
-export function AnalyticsMetrics({ totalProjects, totalRevenue, avgRating, happyClients }: AnalyticsMetricsProps) {
+export function AnalyticsMetrics({ 
+  totalProjects, 
+  totalRevenue, 
+  totalPotentialRevenue,
+  avgRating, 
+  happyClients 
+}: AnalyticsMetricsProps) {
   const metrics = [
     {
       title: "Total Projects",
@@ -15,7 +21,7 @@ export function AnalyticsMetrics({ totalProjects, totalRevenue, avgRating, happy
       iconColor: "text-blue-200",
     },
     {
-      title: "Total Revenue",
+      title: "Actual Revenue",
       value: `$${totalRevenue.toLocaleString()}`,
       icon: DollarSign,
       gradient: "from-emerald-500 to-emerald-600",
@@ -23,27 +29,35 @@ export function AnalyticsMetrics({ totalProjects, totalRevenue, avgRating, happy
       iconColor: "text-emerald-200",
     },
     {
-      title: "Avg Rating",
-      value: avgRating.toFixed(1),
-      icon: Star,
+      title: "Potential Revenue",
+      value: `$${totalPotentialRevenue.toLocaleString()}`,
+      icon: TrendingUp,
       gradient: "from-amber-500 to-orange-500",
       textColor: "text-amber-100",
       iconColor: "text-amber-200",
+    },
+    {
+      title: "Avg Rating",
+      value: avgRating.toFixed(1),
+      icon: Star,
+      gradient: "from-purple-500 to-pink-500",
+      textColor: "text-purple-100",
+      iconColor: "text-purple-200",
       fillIcon: true,
     },
     {
       title: "Happy Clients",
       value: happyClients.toString(),
       icon: Users,
-      gradient: "from-purple-500 to-pink-500",
-      textColor: "text-purple-100",
-      iconColor: "text-purple-200",
+      gradient: "from-indigo-500 to-purple-500",
+      textColor: "text-indigo-100",
+      iconColor: "text-indigo-200",
     },
   ]
 
   return (
     <section
-      className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8"
+      className="grid grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 mb-6 sm:mb-8"
       aria-label="Key Performance Metrics"
     >
       {metrics.map((metric) => {

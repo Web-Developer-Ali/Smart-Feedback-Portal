@@ -33,7 +33,6 @@ export default function ProjectTabs({
   const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(null);
   const [deletingMilestone, setDeletingMilestone] = useState<Milestone | null>(null);
   const [submittingMilestone, setSubmittingMilestone] = useState<Milestone | null>(null);
-
   const handleCloseEditDialog = useCallback((open: boolean) => {
     if (!open) {
       setTimeout(() => {

@@ -10,7 +10,7 @@ declare module "next-auth" {
     otpVerified?: boolean;
     avatar?: string;
   }
-  
+
   interface Session {
     user: {
       id?: string;
@@ -20,6 +20,7 @@ declare module "next-auth" {
       otpVerified?: boolean;
       role?: string;
       avatar?: string;
+      provider?: string;
     };
   }
 

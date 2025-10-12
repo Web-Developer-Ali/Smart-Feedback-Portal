@@ -4,6 +4,7 @@ import { authOptions } from "../../auth/[...nextauth]/options";
 import { withTransaction } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { PoolClient } from "pg";
 
 // Validation schema
 const deleteProjectSchema = z.object({
@@ -111,7 +112,7 @@ export async function DELETE(request: Request) {
 }
 
 // Get project statistics before deletion
-async function getProjectStats(client: any, projectId: string): Promise<ProjectStats> {
+async function getProjectStats(client: PoolClient, projectId: string): Promise<ProjectStats> {
   try {
     const [milestones, reviews, media] = await Promise.all([
       client.query(`SELECT COUNT(*) as count FROM milestones WHERE project_id = $1`, [projectId]),
@@ -131,7 +132,7 @@ async function getProjectStats(client: any, projectId: string): Promise<ProjectS
 }
 
 // Manual deletion function - FIXED: Don't continue if a table deletion fails
-async function deleteProjectManually(client: any, projectId: string): Promise<DeletionResult[]> {
+async function deleteProjectManually(client: PoolClient, projectId: string): Promise<DeletionResult[]> {
   const tablesToDelete = [
     { table: "media_attachments", column: "project_id" },
     { table: "reviews", column: "project_id" },
@@ -146,25 +147,25 @@ async function deleteProjectManually(client: any, projectId: string): Promise<De
       const res = await client.query(`DELETE FROM ${table} WHERE ${column} = $1`, [projectId]);
       results.push({ table, success: true, deleted: res.rowCount || 0 });
     } catch (error) {
-      // If any table deletion fails, throw immediately to abort transaction
       const message = error instanceof Error ? error.message : "Unknown error";
       throw new Error(`Failed to delete from ${table}: ${message}`);
     }
   }
 
-  // Finally delete project
   const projectRes = await client.query(`DELETE FROM project WHERE id = $1`, [projectId]);
   if (projectRes.rowCount === 0) {
     throw new Error("Project deletion failed: No rows affected");
   }
-  results.push({ table: "project", success: true, deleted: projectRes.rowCount });
+  // Ensure deleted is a number (coerce possible null to 0)
+  results.push({ table: "project", success: true, deleted: projectRes.rowCount ?? 0 });
 
   return results;
 }
 
+
 // Log project deletion
 async function logProjectDeletion(
-  client: any,
+  client: PoolClient,
   project: Project,
   userId: string,
   stats: ProjectStats,
@@ -190,6 +191,7 @@ async function logProjectDeletion(
     ]
   );
 }
+
 
 // Cleanup project files (placeholder for Cloudinary etc.)
 async function cleanupProjectFiles(projectId: string): Promise<void> {

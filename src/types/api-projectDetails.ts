@@ -23,6 +23,8 @@ export interface ApiMilestone {
   revision_rate: number
   used_revisions: number
   reviews: ApiReview[]
+  deliverables: []
+  priority: number
 }
 
 export interface ApiReview {
@@ -54,6 +56,17 @@ export interface Project {
   jwt_token?: string
 }
 
+export interface Deliverable {
+  id: string
+  name: string
+  uploaded_at: string
+  submission_notes?: string
+  file_count: number
+  file_names?: string[]
+  uploaded_by: string
+  public_ids: string[]
+}
+
 export interface Milestone {
   id: string
   name: string
@@ -63,6 +76,7 @@ export interface Milestone {
   status: "pending" | "in_progress" | "submitted" | "approved" | "rejected"
   created_at: string
   due_date: string
+  priority: number
   submitted_at?: string
   approved_at?: string
   submission_notes?: string
@@ -71,15 +85,8 @@ export interface Milestone {
   revision_rate: number
   used_revisions: number
   deliverables: Deliverable[]
-}
-
-export interface Deliverable {
-  id: string
-  name: string
-  type: "file" | "link" | "text"
-  url?: string
-  content?: string
-  uploaded_at: string
+  title?: string // Optional title field only for api compatibility
+  reviews?: ApiReview[] // Optional title field only for api compatibility
 }
 
 export interface Review {

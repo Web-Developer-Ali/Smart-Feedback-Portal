@@ -3,43 +3,16 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/options";
 import { withTransaction } from "@/lib/db"; // use your pooled transaction client
 import { z } from "zod";
+import {
+  Deliverable,
+  MediaAttachment,
+  Milestone,
+  ProjectResponse,
+} from "@/types/client-review_api";
 
 const ProjectSchema = z.object({
   projectId: z.string().uuid(),
 });
-
-interface Deliverable {
-  name: string;
-  url: string;
-  notes: string;
-}
-
-interface Milestone {
-  id: string;
-  title: string;
-  description: string;
-  status: "pending" | "submitted" | "approved" | "rejected" | "in_progress" | "Not Started";
-  deliverables: Deliverable[];
-  dueDate: string | null;
-  submittedDate: string | undefined;
-  price: number;
-  duration: string | null;
-  freeRevisions: number;
-  usedRevisions: number;
-  revisionRate: number;
-}
-
-interface ProjectResponse {
-  id: string;
-  title: string;
-  status: string;
-  description: string;
-  type: string;
-  freelancerName: string;
-  freelancerAvatar: string;
-  totalAmount: number;
-  milestones: Milestone[];
-}
 
 export async function GET(request: Request) {
   try {
@@ -47,17 +20,26 @@ export async function GET(request: Request) {
     const projectId = searchParams.get("projectId");
 
     if (!projectId) {
-      return NextResponse.json({ error: "Project ID is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Project ID is required" },
+        { status: 400 }
+      );
     }
 
     const validated = ProjectSchema.safeParse({ projectId });
     if (!validated.success) {
-      return NextResponse.json({ error: "Invalid project ID format" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid project ID format" },
+        { status: 400 }
+      );
     }
 
     const session = await getServerSession(authOptions);
     if (!session?.user?.id && !session?.user?.email) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
     }
 
     const userId = session?.user?.id;
@@ -96,17 +78,20 @@ export async function GET(request: Request) {
           `SELECT milestone_id, submission_notes, public_ids, file_names
            FROM media_attachments WHERE project_id = $1`,
           [projectId]
-        )
+        ),
       ]);
 
       const milestones = milestonesResult.rows || [];
       const mediaAttachments = mediaResult.rows || [];
 
       // Group media by milestone
-      const mediaByMilestone = mediaAttachments.reduce((acc: Record<string, any[]>, media) => {
-        (acc[media.milestone_id] ||= []).push(media);
-        return acc;
-      }, {});
+      const mediaByMilestone = mediaAttachments.reduce(
+        (acc: Record<string, MediaAttachment[]>, media: MediaAttachment) => {
+          (acc[media.milestone_id] ||= []).push(media);
+          return acc;
+        },
+        {}
+      );
 
       const transformed: ProjectResponse = {
         id: project.id,
@@ -121,21 +106,31 @@ export async function GET(request: Request) {
           const milestoneMedia = mediaByMilestone[m.id] || [];
           const deliverables: Deliverable[] = [];
 
-          milestoneMedia.forEach((media: any) => {
-            if (media.public_ids?.length > 0) {
+          milestoneMedia.forEach((media: MediaAttachment) => {
+            if (
+              Array.isArray(media.public_ids) &&
+              media.public_ids.length > 0
+            ) {
               media.public_ids.forEach((publicId: string, idx: number) => {
                 deliverables.push({
-                  name: media.file_names?.[idx] || `file-${idx + 1}`,
+                  name: Array.isArray(media.file_names)
+                    ? media.file_names[idx] || `file-${idx + 1}`
+                    : `file-${idx + 1}`,
                   url: publicId,
                   notes: media.submission_notes || "",
                 });
               });
-            } else if (media.file_names?.length > 0) {
+            } else if (
+              Array.isArray(media.file_names) &&
+              media.file_names.length > 0
+            ) {
               media.file_names.forEach((fileName: string, idx: number) => {
                 deliverables.push({
                   name: fileName,
                   url: `#file-not-available-${idx}`,
-                  notes: media.submission_notes || `File available upon request - ${fileName}`,
+                  notes:
+                    media.submission_notes ||
+                    `File available upon request - ${fileName}`,
                 });
               });
             }
@@ -147,9 +142,10 @@ export async function GET(request: Request) {
             description: m.description || "",
             status: mapStatusToFrontend(m.status),
             deliverables,
-            dueDate: m.created_at && m.duration_days
-              ? calculateDueDate(m.created_at, m.duration_days)
-              : null,
+            dueDate:
+              m.created_at && m.duration_days
+                ? calculateDueDate(m.created_at, m.duration_days)
+                : null,
             submittedDate: m.submitted_at
               ? new Date(m.submitted_at).toISOString().split("T")[0]
               : undefined,
@@ -174,19 +170,35 @@ export async function GET(request: Request) {
         "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30",
       },
     });
-  } catch (error: any) {
-    if (error.message === "Unauthorized") {
-      return NextResponse.json({ error: "Unauthorized access to project" }, { status: 403 });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      if (error.message === "Unauthorized") {
+        return NextResponse.json(
+          { error: "Unauthorized access to project" },
+          { status: 403 }
+        );
+      }
+      console.error("Project Details API Error:", error.message);
+    } else {
+      console.error("Unknown error:", error);
     }
 
-    console.error("Project Details API Error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }
 
 function mapStatusToFrontend(
   status: string
-): "pending" | "submitted" | "approved" | "rejected" | "Not Started" | "in_progress" {
+):
+  | "pending"
+  | "submitted"
+  | "approved"
+  | "rejected"
+  | "Not Started"
+  | "in_progress" {
   const statusMap: Record<string, Milestone["status"]> = {
     submitted: "submitted",
     approved: "approved",
@@ -203,5 +215,4 @@ function calculateDueDate(createdAt: string, durationDays: number): string {
   return date.toISOString().split("T")[0];
 }
 
-export const config = { runtime: "nodejs" };
-export const revalidation = 60;
+export const dynamic = "force-dynamic"; // Optional: if you want to ensure dynamic behavior

@@ -1,11 +1,11 @@
-import type { Metadata, Viewport } from "next"
-import { notFound } from "next/navigation"
-import ProjectDetailClient from "./project-detail-client"
+import type { Metadata, Viewport } from "next";
+import { notFound } from "next/navigation";
+import ProjectDetailClient from "./project-detail-client";
 
 interface Props {
-  params: {
-    projectId: string
-  }
+  params: Promise<{
+    projectId: string;
+  }>;
 }
 
 // Viewport configuration moved from metadata
@@ -15,11 +15,11 @@ export const viewport: Viewport = {
     { media: "(prefers-color-scheme: light)", color: "#2563eb" },
     { media: "(prefers-color-scheme: dark)", color: "#1d4ed8" },
   ],
-}
+};
 
 // Optimized structured data generator using Buffer
 function generateStructuredData(data: object): string {
-  return JSON.stringify(data)
+  return JSON.stringify(data);
 }
 
 // Enhanced metadata generation
@@ -27,15 +27,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { projectId } = await params;
 
   if (!projectId || projectId.length < 3) {
-    notFound()
+    notFound();
   }
 
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://smartfeedbackportal.com"
-    const canonicalUrl = `${baseUrl}/dashboard/projects/${projectId}`
+    const baseUrl =
+      process.env.NEXT_PUBLIC_SITE_URL || "https://smartfeedbackportal.com";
+    const canonicalUrl = `${baseUrl}/dashboard/projects/${projectId}`;
 
     return {
-      title: "Smart Project Management & Client Feedback Portal | Real-time Collaboration",
+      title:
+        "Smart Project Management & Client Feedback Portal | Real-time Collaboration",
       description:
         "Experience the future of project management with our intelligent feedback portal. Track milestones, collect client reviews, manage revisions, and streamline collaboration in one powerful platform. Trusted by 10,000+ agencies worldwide.",
       keywords: [
@@ -115,13 +117,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
       applicationName: "Smart Feedback Portal",
       referrer: "origin-when-cross-origin",
-    }
+    };
   } catch (error) {
-    console.error("Error generating metadata:", error)
+    console.error("Error generating metadata:", error);
     return {
       title: "Project Management Dashboard | Smart Feedback Portal",
-      description: "Professional project management and client feedback platform for agencies and freelancers.",
-    }
+      description:
+        "Professional project management and client feedback platform for agencies and freelancers.",
+    };
   }
 }
 
@@ -130,7 +133,7 @@ export default async function ProjectDetailPage({ params }: Props) {
 
   // Validate project ID format
   if (!projectId || projectId.length < 3) {
-    notFound()
+    notFound();
   }
 
   try {
@@ -196,20 +199,29 @@ export default async function ProjectDetailPage({ params }: Props) {
         url: process.env.NEXT_PUBLIC_SITE_URL,
         logo: `${process.env.NEXT_PUBLIC_SITE_URL}/logo-512.png`,
       }),
-    }
+    };
 
     return (
       <>
         {/* Optimized JSON-LD scripts */}
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: structuredData.softwareApp }} />
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: structuredData.breadcrumb }} />
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: structuredData.organization }} />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: structuredData.softwareApp }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: structuredData.breadcrumb }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: structuredData.organization }}
+        />
 
         <ProjectDetailClient />
       </>
-    )
+    );
   } catch (error) {
-    console.error("Error in ProjectDetailPage:", error)
-    notFound()
+    console.error("Error in ProjectDetailPage:", error);
+    notFound();
   }
 }

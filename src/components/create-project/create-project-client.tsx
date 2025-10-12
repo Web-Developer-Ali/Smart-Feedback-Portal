@@ -1,16 +1,20 @@
-"use client"
+"use client";
 
-import { useState, useCallback } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
-import { toast } from "sonner"
-import axios from 'axios';
-import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar"
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
+import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { toast } from "sonner";
+import axios from "axios";
+import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
+import {
+  SidebarProvider,
+  SidebarInset,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -18,42 +22,42 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
+} from "@/components/ui/breadcrumb";
 import {
   ProjectDetailsStep,
   BudgetTimelineStep,
-  ClientInfoStep
-} from "./form-steps"
+  ClientInfoStep,
+} from "./form-steps";
 import {
   type ProjectFormData,
   type Milestone,
   validateFormStep,
   createProjectSchema,
-} from "@/lib/validations/create_project"
-import { z } from "zod"
-import { MilestonesStep } from "@/components/create-project/milestones-step"
+} from "@/lib/validations/create_project";
+import { z } from "zod";
+import { MilestonesStep } from "@/components/create-project/milestones-step";
 
- interface HandleInputChange {
-    (field: string | number | symbol, value: unknown): void;
-  }
+interface HandleInputChange {
+  (field: string | number | symbol, value: unknown): void;
+}
 
-   interface HandleMilestoneChange {
-    (index: number, field: keyof Milestone, value: unknown): void;
-  }
-const TOTAL_STEPS = 4
+interface HandleMilestoneChange {
+  (index: number, field: keyof Milestone, value: unknown): void;
+}
+const TOTAL_STEPS = 4;
 
 export function CreateProjectPage() {
-  const router = useRouter()
-  const [currentStep, setCurrentStep] = useState(1)
-  const [loading, setLoading] = useState(false)
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  
+  const router = useRouter();
+  const [currentStep, setCurrentStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
   const [formData, setFormData] = useState<Partial<ProjectFormData>>({
     name: "",
     type: undefined,
     description: "",
-    project_budget: undefined,
-    estimated_days: undefined,
+    project_budget: 0,
+    estimated_days: 0,
     client_name: "",
     client_email: "",
     milestones: [
@@ -66,30 +70,41 @@ export function CreateProjectPage() {
         revision_rate: 50,
       },
     ],
-  })
+  });
 
   // Calculate total milestone price
-  const totalMilestonePrice = formData.milestones?.reduce((sum, m) => sum + (m.milestone_price || 0), 0) || 0
-  const budgetDifference = formData.project_budget ? Math.abs(totalMilestonePrice - formData.project_budget) : 0
-  const isWithinBudget = formData.project_budget ? budgetDifference <= formData.project_budget * 0.1 : true
+  const totalMilestonePrice =
+    formData.milestones?.reduce(
+      (sum, m) => sum + (m.milestone_price || 0),
+      0
+    ) || 0;
+  const budgetDifference = formData.project_budget
+    ? Math.abs(totalMilestonePrice - formData.project_budget)
+    : 0;
+  const isWithinBudget = formData.project_budget
+    ? budgetDifference <= formData.project_budget * 0.1
+    : true;
 
-  const progress = (currentStep / TOTAL_STEPS) * 100
+  const progress = (currentStep / TOTAL_STEPS) * 100;
 
-  const handleInputChange: HandleInputChange = useCallback((field, value) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }))
-    
-    // Clear field-specific errors when user starts typing
-    if (errors[field as string]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev }
-        delete newErrors[field as string]
-        return newErrors
-      })
-    }
-  }, [errors])
+  const handleInputChange: HandleInputChange = useCallback(
+    (field, value) => {
+      setFormData((prev) => ({
+        ...prev,
+        [field]: value,
+      }));
+
+      // Clear field-specific errors when user starts typing
+      if (errors[field as string]) {
+        setErrors((prev) => {
+          const newErrors = { ...prev };
+          delete newErrors[field as string];
+          return newErrors;
+        });
+      }
+    },
+    [errors]
+  );
 
   const handleMilestoneChange: HandleMilestoneChange = useCallback(
     (index, field, value) => {
@@ -120,8 +135,8 @@ export function CreateProjectPage() {
 
   const addMilestone = useCallback(() => {
     if (formData.milestones && formData.milestones.length >= 10) {
-      toast.error("Maximum 10 milestones allowed")
-      return
+      toast.error("Maximum 10 milestones allowed");
+      return;
     }
 
     setFormData((prev) => ({
@@ -137,142 +152,146 @@ export function CreateProjectPage() {
           revision_rate: 20,
         },
       ],
-    }))
-  }, [formData.milestones])
+    }));
+  }, [formData.milestones]);
 
-  const removeMilestone = useCallback((index: number) => {
-    if (!formData.milestones || formData.milestones.length <= 1) {
-      toast.error("At least one milestone is required")
-      return
-    }
+  const removeMilestone = useCallback(
+    (index: number) => {
+      if (!formData.milestones || formData.milestones.length <= 1) {
+        toast.error("At least one milestone is required");
+        return;
+      }
 
-    setFormData((prev) => ({
-      ...prev,
-      milestones: prev.milestones?.filter((_, i) => i !== index) || [],
-    }))
+      setFormData((prev) => ({
+        ...prev,
+        milestones: prev.milestones?.filter((_, i) => i !== index) || [],
+      }));
 
-    // Clear errors for removed milestone
-    setErrors((prev) => {
-      const newErrors = { ...prev }
-      Object.keys(newErrors).forEach((key) => {
-        if (key.startsWith(`milestones.${index}.`)) {
-          delete newErrors[key]
-        }
-      })
-      return newErrors
-    })
-  }, [formData.milestones])
+      // Clear errors for removed milestone
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        Object.keys(newErrors).forEach((key) => {
+          if (key.startsWith(`milestones.${index}.`)) {
+            delete newErrors[key];
+          }
+        });
+        return newErrors;
+      });
+    },
+    [formData.milestones]
+  );
 
   const nextStep = useCallback(() => {
-    const validation = validateFormStep(currentStep, formData)
-    
+    const validation = validateFormStep(currentStep, formData);
+
     if (!validation.success) {
-      setErrors(validation.errors)
-      
+      setErrors(validation.errors);
+
       // Show the first error in toast
-      const firstError = Object.values(validation.errors)[0]
+      const firstError = Object.values(validation.errors)[0];
       if (firstError) {
         toast.error("Please fix the following issue:", {
-          description: firstError
-        })
+          description: firstError,
+        });
       }
-      
-      return
+
+      return;
     }
 
-    setErrors({})
-    setCurrentStep((prev) => Math.min(prev + 1, TOTAL_STEPS))
-  }, [currentStep, formData])
+    setErrors({});
+    setCurrentStep((prev) => Math.min(prev + 1, TOTAL_STEPS));
+  }, [currentStep, formData]);
 
   const prevStep = useCallback(() => {
-    setCurrentStep((prev) => Math.max(prev - 1, 1))
-    setErrors({}) // Clear errors when going back
-  }, [])
+    setCurrentStep((prev) => Math.max(prev - 1, 1));
+    setErrors({}); // Clear errors when going back
+  }, []);
 
-const handleSubmit = useCallback(async () => {
-  try {
-    // Final validation
-    const validatedData = createProjectSchema.parse(formData);
-    setLoading(true);
-    setErrors({});
+  const handleSubmit = useCallback(async () => {
+    try {
+      // Final validation
+      const validatedData = createProjectSchema.parse(formData);
+      setLoading(true);
+      setErrors({});
 
-    // Call the API endpoint using Axios
-    const { data } = await axios.post('/api/project/create_project', validatedData, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    toast.success("Project created successfully!", {
-      action: {
-        label: "View Project",
-        onClick: () => router.push(`/project_detail/${data.project_id}`)
-      }
-    });
-
-    router.push("/dashboard/projects");
-  } catch (error) {
-    console.error("Error creating project:", error);
-    
-    if (axios.isAxiosError(error)) {
-      // Handle API errors
-      const errorData = error.response?.data;
-      
-      if (error.response?.status === 422 && errorData?.details) {
-        // Handle Zod validation errors from API
-        const flattenedErrors = errorData.details.fieldErrors;
-        const errorMessages = Object.values(flattenedErrors).flat();
-        
-        toast.error("Validation errors occurred", {
-          description: errorMessages.join('\n')
-        });
-        
-        setErrors(flattenedErrors);
-      } else {
-        // Handle other API errors
-        toast.error(errorData?.error || 'Failed to create project');
-      }
-    } 
-    else if (error instanceof z.ZodError) {
-      // Handle client-side validation errors
-      const errorMessages = error.errors.map(err => err.message);
-      
-      toast.error("Please fix the following issues:", {
-        description: errorMessages.join('\n')
+      // Call the API endpoint using Axios
+      const { data } = await axios.post(
+        "/api/project/create_project",
+        validatedData,
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      toast.success("Project created successfully!", {
+        action: {
+          label: "View Project",
+          onClick: () => router.push(`/project_detail/${data.project_id}`),
+        },
       });
-      
-      const newErrors = error.errors.reduce((acc, err) => {
-        const path = err.path.join('.');
-        acc[path] = err.message;
-        return acc;
-      }, {} as Record<string, string>);
-      
-      setErrors(newErrors);
-    } 
-    else if (error instanceof Error) {
-      toast.error(`Failed to create project: ${error.message}`);
-    } 
-    else {
-      toast.error("Failed to create project. Please try again.");
+
+      router.push("/dashboard/projects");
+    } catch (error) {
+      console.error("Error creating project:", error);
+
+      if (axios.isAxiosError(error)) {
+        // Handle API errors
+        const errorData = error.response?.data;
+
+        if (error.response?.status === 422 && errorData?.details) {
+          // Handle Zod validation errors from API
+          const flattenedErrors = errorData.details.fieldErrors;
+          const errorMessages = Object.values(flattenedErrors).flat();
+
+          toast.error("Validation errors occurred", {
+            description: errorMessages.join("\n"),
+          });
+
+          setErrors(flattenedErrors);
+        } else {
+          // Handle other API errors
+          toast.error(errorData?.error || "Failed to create project");
+        }
+      } else if (error instanceof z.ZodError) {
+        // Handle client-side validation errors
+        const errorMessages = error.errors.map((err) => err.message);
+
+        toast.error("Please fix the following issues:", {
+          description: errorMessages.join("\n"),
+        });
+
+        const newErrors = error.errors.reduce((acc, err) => {
+          const path = err.path.join(".");
+          acc[path] = err.message;
+          return acc;
+        }, {} as Record<string, string>);
+
+        setErrors(newErrors);
+      } else if (error instanceof Error) {
+        toast.error(`Failed to create project: ${error.message}`);
+      } else {
+        toast.error("Failed to create project. Please try again.");
+      }
+    } finally {
+      setLoading(false);
     }
-  } finally {
-    setLoading(false);
-  }
-}, [formData, router]);
+  }, [formData, router]);
 
   const renderStepContent = () => {
     const commonProps = {
       formData: formData as ProjectFormData,
       onInputChange: handleInputChange,
       errors,
-    }
+    };
 
     switch (currentStep) {
       case 1:
-        return <ProjectDetailsStep {...commonProps} />
+        return <ProjectDetailsStep {...commonProps} />;
       case 2:
-        return <BudgetTimelineStep {...commonProps} />
+        return <BudgetTimelineStep {...commonProps} />;
       case 3:
-        return <ClientInfoStep {...commonProps} />
+        return <ClientInfoStep {...commonProps} />;
       case 4:
         return (
           <MilestonesStep
@@ -283,11 +302,11 @@ const handleSubmit = useCallback(async () => {
             totalMilestonePrice={totalMilestonePrice}
             isWithinBudget={isWithinBudget}
           />
-        )
+        );
       default:
-        return null
+        return null;
     }
-  }
+  };
 
   return (
     <>
@@ -299,7 +318,8 @@ const handleSubmit = useCallback(async () => {
             "@context": "https://schema.org",
             "@type": "WebPage",
             name: "Create New Project",
-            description: "Create a new project with milestones, budget tracking, and client collaboration features.",
+            description:
+              "Create a new project with milestones, budget tracking, and client collaboration features.",
             url: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/create_projects`,
             isPartOf: {
               "@type": "WebSite",
@@ -311,7 +331,7 @@ const handleSubmit = useCallback(async () => {
       />
 
       <SidebarProvider>
-        <DashboardSidebar/>
+        <DashboardSidebar />
         <SidebarInset>
           {/* Header */}
           <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0 z-10">
@@ -324,7 +344,9 @@ const handleSubmit = useCallback(async () => {
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="hidden md:block" />
                 <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="/dashboard/projects">Projects</BreadcrumbLink>
+                  <BreadcrumbLink href="/dashboard/projects">
+                    Projects
+                  </BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="hidden md:block" />
                 <BreadcrumbItem>
@@ -339,7 +361,7 @@ const handleSubmit = useCallback(async () => {
               {/* Progress Header */}
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-4">
-                  <Button 
+                  <Button
                     variant="ghost"
                     onClick={() => router.push("/dashboard/projects")}
                     className="flex items-center gap-2 hover:bg-white/50"
@@ -352,7 +374,7 @@ const handleSubmit = useCallback(async () => {
                     Step {currentStep} of {TOTAL_STEPS}
                   </div>
                 </div>
-                <Progress 
+                <Progress
                   value={progress}
                   className="h-2 bg-gray-200"
                   aria-label={`Progress: Step ${currentStep} of ${TOTAL_STEPS}`}
@@ -379,7 +401,7 @@ const handleSubmit = useCallback(async () => {
                 </Button>
 
                 {currentStep < TOTAL_STEPS ? (
-                  <Button 
+                  <Button
                     onClick={nextStep}
                     className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 order-1 sm:order-2"
                   >
@@ -387,7 +409,7 @@ const handleSubmit = useCallback(async () => {
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 ) : (
-                  <Button 
+                  <Button
                     onClick={handleSubmit}
                     disabled={loading}
                     className="flex items-center gap-2 bg-green-600 hover:bg-green-700 order-1 sm:order-2"
@@ -411,5 +433,5 @@ const handleSubmit = useCallback(async () => {
         </SidebarInset>
       </SidebarProvider>
     </>
-  )
+  );
 }

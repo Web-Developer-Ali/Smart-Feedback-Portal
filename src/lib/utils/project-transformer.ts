@@ -61,10 +61,11 @@ export function transformApiMilestone(apiMilestone: ApiMilestone): Milestone {
     status: statusMap[apiMilestone.status] || "pending",
     created_at: new Date().toLocaleDateString(),
     due_date: dueDate.toLocaleDateString(),
+    priority: apiMilestone.priority,
     free_revisions: apiMilestone.free_revisions,
     used_revisions: apiMilestone.used_revisions,
     revision_rate: apiMilestone.revision_rate,
-    deliverables: [],
+    deliverables: apiMilestone.deliverables,
   }
 }
 

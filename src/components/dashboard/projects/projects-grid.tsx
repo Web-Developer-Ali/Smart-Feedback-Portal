@@ -22,23 +22,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
+  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
   Search,
-  MoreHorizontal,
   Eye,
   Trash2,
   Star,
@@ -201,50 +195,58 @@ export function ProjectsGrid({
   return (
     <>
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="max-w-[95vw] sm:max-w-[425px]">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
-              <Trash2 className="h-5 w-5" />
-              Delete Project
-            </AlertDialogTitle>
-            <div className="text-base text-muted-foreground">
-              {`Are you sure you want to delete the project "${projectToDelete?.name}"? This action cannot be undone and will permanently delete:`}
-              <ul className="list-disc list-inside mt-2 text-sm space-y-1">
-                <li>All project milestones and tasks</li>
-                <li>Client reviews and feedback</li>
-                <li>Project files and attachments</li>
-                <li>Activity history and timeline</li>
-              </ul>
-            </div>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2 sm:gap-0">
-            <AlertDialogCancel
-              disabled={isDeleting}
-              className="mt-2 mr-8 sm:mt-0"
-            >
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteProject}
-              disabled={isDeleting}
-              className="bg-red-600 hover:bg-red-700 focus:ring-red-600 px-6"
-            >
-              {isDeleting ? (
-                <div className="flex items-center gap-2">
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  <span>Deleting Project...</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <Trash2 className="h-4 w-4" />
-                  <span>Delete Project</span>
-                </div>
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+<AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+  <AlertDialogContent className="max-w-[95vw] sm:max-w-[425px]">
+    <AlertDialogHeader>
+      <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+        <Trash2 className="h-5 w-5" />
+        Delete Project
+      </AlertDialogTitle>
+      <AlertDialogDescription asChild>
+        <div className="sr-only">
+          Confirmation dialog for deleting project {projectToDelete?.name}
+        </div>
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    
+    {/* Visible content */}
+    <div className="text-base text-muted-foreground">
+      {`Are you sure you want to delete the project "${projectToDelete?.name}"? This action cannot be undone and will permanently delete:`}
+      <ul className="list-disc list-inside mt-2 text-sm space-y-1">
+        <li>All project milestones and tasks</li>
+        <li>Client reviews and feedback</li>
+        <li>Project files and attachments</li>
+        <li>Activity history and timeline</li>
+      </ul>
+    </div>
+    
+    <AlertDialogFooter className="gap-2 sm:gap-0">
+      <AlertDialogCancel
+        disabled={isDeleting}
+        className="mt-2 mr-8 sm:mt-0"
+      >
+        Cancel
+      </AlertDialogCancel>
+      <AlertDialogAction
+        onClick={handleDeleteProject}
+        disabled={isDeleting}
+        className="bg-red-600 hover:bg-red-700 focus:ring-red-600 px-6"
+      >
+        {isDeleting ? (
+          <div className="flex items-center gap-2">
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            <span>Deleting Project...</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Trash2 className="h-4 w-4" />
+            <span>Delete Project</span>
+          </div>
+        )}
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
 
       {/* Filters */}
       <Card className="mb-6 shadow-xl border-0 bg-white/80 backdrop-blur-sm">
@@ -334,39 +336,32 @@ export function ProjectsGrid({
                   </CardDescription>
                 </div>
                 <div
-                  className="flex-shrink-0"
+                  className="flex-shrink-0 flex gap-1"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 hover:bg-gray-100"
-                        onClick={(e) => e.stopPropagation()}
-                        disabled={isProjectDeleting(project.id)}
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() => handleViewDetails(project.id)}
-                        disabled={isProjectDeleting(project.id)}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-red-600"
-                        onClick={() => openDeleteDialog(project)}
-                        disabled={isProjectDeleting(project.id)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {/* View Details Button */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
+                    onClick={() => handleViewDetails(project.id)}
+                    disabled={isProjectDeleting(project.id)}
+                    title="View Details"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+
+                  {/* Delete Button */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600 text-red-600"
+                    onClick={() => openDeleteDialog(project)}
+                    disabled={isProjectDeleting(project.id)}
+                    title="Delete Project"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </CardHeader>

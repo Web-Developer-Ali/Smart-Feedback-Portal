@@ -72,16 +72,20 @@ export async function PUT(request: Request) {
 
     // Build update fields
     const updateFields: string[] = ["updated_at = $1"];
-    const updateValues: any[] = [new Date().toISOString()];
+   const updateValues: (string | number | boolean | null | undefined)[] = [new Date().toISOString()];
     let paramCount = 2;
 
-    const addField = (field: string, newValue: any, oldValue: any) => {
-      if (newValue !== undefined && newValue !== oldValue) {
-        updateFields.push(`${field} = $${paramCount}`);
-        updateValues.push(nullToUndefined(newValue));
-        paramCount++;
-      }
-    };
+   const addField = (
+       field: string,
+       newValue: string | number | boolean | null | undefined,
+       oldValue: string | number | boolean | null | undefined
+ ) => {
+  if (newValue !== undefined && newValue !== oldValue) {
+    updateFields.push(`${field} = $${paramCount}`);
+    updateValues.push(nullToUndefined(newValue));
+    paramCount++;
+  }
+};
 
     addField("title", validated.data.title, milestone.title);
     addField("description", validated.data.description, milestone.description);

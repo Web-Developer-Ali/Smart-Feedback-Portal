@@ -9,9 +9,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <SessionProvider>
       <UserProvider>
         {children}
-         <Toaster
+        <Toaster
           toastOptions={{
-            descriptionClassName: "text-black"
+            classNames: {
+              description: "text-black dark:text-black",
+            },
           }}
         />
       </UserProvider>

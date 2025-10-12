@@ -1,45 +1,69 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useParams, useRouter } from "next/navigation"
-import { toast } from "sonner"
-import { Loader2, Mail, MessageSquare, Phone, User, AlertCircle, CheckCircle, Send } from "lucide-react"
-import { z } from "zod"
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
+import {
+  Loader2,
+  Mail,
+  MessageSquare,
+  Phone,
+  User,
+  AlertCircle,
+  CheckCircle,
+  Send,
+} from "lucide-react";
+import { z } from "zod";
 
 // Zod validation schema
 const contactSchema = z.object({
-  name: z.string()
+  name: z
+    .string()
     .min(2, "Name must be at least 2 characters")
     .max(50, "Name must be less than 50 characters"),
-  email: z.string()
-    .email("Please enter a valid email address"),
-  subject: z.string()
+  email: z.string().email("Please enter a valid email address"),
+  subject: z
+    .string()
     .min(5, "Subject must be at least 5 characters")
     .max(100, "Subject must be less than 100 characters"),
-  category: z.string()
-    .min(1, "Please select a category"),
-  message: z.string()
+  category: z.string().min(1, "Please select a category"),
+  message: z
+    .string()
     .min(10, "Message must be at least 10 characters")
     .max(2000, "Message must be less than 2000 characters"),
-  urgency: z.enum(["low", "medium", "high"]).default("medium")
-})
+  urgency: z.enum(["low", "medium", "high"]).default("medium"),
+});
 
-type ContactFormData = z.infer<typeof contactSchema>
+type ContactFormData = z.infer<typeof contactSchema>;
 
 export default function ClientSupportPage() {
-  const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
-  
-  const params = useParams()
-  const router = useRouter()
-  const projectId = params.id as string
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<
+    Record<string, string>
+  >({});
+
+  const params = useParams();
+  const router = useRouter();
+  const projectId = params.id as string;
 
   const [formData, setFormData] = useState<ContactFormData>({
     name: "",
@@ -47,8 +71,8 @@ export default function ClientSupportPage() {
     subject: "",
     category: "",
     message: "",
-    urgency: "medium"
-  })
+    urgency: "medium",
+  });
 
   const categories = [
     { value: "technical", label: "Technical Issue" },
@@ -56,82 +80,84 @@ export default function ClientSupportPage() {
     { value: "feedback", label: "Project Feedback" },
     { value: "milestone", label: "Milestone Review" },
     { value: "communication", label: "Communication Issue" },
-    { value: "other", label: "Other" }
-  ]
+    { value: "other", label: "Other" },
+  ];
 
   const validateForm = (): boolean => {
     try {
-      contactSchema.parse(formData)
-      setValidationErrors({})
-      return true
+      contactSchema.parse(formData);
+      setValidationErrors({});
+      return true;
     } catch (error) {
       if (error instanceof z.ZodError) {
-        const errors: Record<string, string> = {}
+        const errors: Record<string, string> = {};
         error.errors.forEach((err) => {
           if (err.path[0]) {
-            errors[err.path[0]] = err.message
+            errors[err.path[0]] = err.message;
           }
-        })
-        setValidationErrors(errors)
-        
+        });
+        setValidationErrors(errors);
+
         // Show the first error in toast
-        const firstError = error.errors[0]
+        const firstError = error.errors[0];
         if (firstError) {
-          toast.error(firstError.message)
+          toast.error(firstError.message);
         }
       }
-      return false
+      return false;
     }
-  }
+  };
 
   const handleInputChange = (field: keyof ContactFormData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-    
+    setFormData((prev) => ({ ...prev, [field]: value }));
+
     // Clear validation error when user starts typing
     if (validationErrors[field]) {
-      setValidationErrors(prev => ({ ...prev, [field]: "" }))
+      setValidationErrors((prev) => ({ ...prev, [field]: "" }));
     }
-  }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     if (!validateForm()) {
-      return
+      return;
     }
 
-    setSubmitting(true)
+    setSubmitting(true);
 
     try {
       const payload = {
         ...formData,
         projectId,
-        type: "client_support"
-      }
+        type: "client_support",
+      };
 
       const res = await fetch("/api/client/support", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      })
+      });
 
-      const data = await res.json()
+      const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to send message")
+        throw new Error(data.error || "Failed to send message");
       }
 
-      setSubmitted(true)
-      toast.success("Message sent successfully! We'll get back to you soon.")
-      
+      setSubmitted(true);
+      toast.success(
+        "Message sent successfully! We&apos;ll get back to you soon."
+      );
     } catch (error) {
-      console.error("Send message error:", error)
-      const errorMessage = error instanceof Error ? error.message : "Something went wrong"
-      toast.error(errorMessage)
+      console.error("Send message error:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Something went wrong";
+      toast.error(errorMessage);
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   if (submitted) {
     return (
@@ -142,29 +168,34 @@ export default function ClientSupportPage() {
               <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
                 <CheckCircle className="w-10 h-10 text-green-600" />
               </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">Message Sent Successfully!</h2>
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                Message Sent Successfully!
+              </h2>
               <p className="text-gray-600 text-lg mb-6">
-                Thank you for reaching out. We've received your message and will get back to you within 24 hours.
+                Thank you for reaching out. We&#39;ve received your message and
+                will get back to you within 24 hours.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button 
-                  onClick={() => router.push(`/client/client-review/${projectId}`)}
+                <Button
+                  onClick={() =>
+                    router.push(`/client/client-review/${projectId}`)
+                  }
                   className="bg-blue-600 hover:bg-blue-700"
                 >
                   Back to Project
                 </Button>
-                <Button 
+                <Button
                   variant="outline"
                   onClick={() => {
-                    setSubmitted(false)
+                    setSubmitted(false);
                     setFormData({
                       name: "",
                       email: "",
                       subject: "",
                       category: "",
                       message: "",
-                      urgency: "medium"
-                    })
+                      urgency: "medium",
+                    });
                   }}
                 >
                   Send Another Message
@@ -174,7 +205,7 @@ export default function ClientSupportPage() {
           </Card>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -189,7 +220,8 @@ export default function ClientSupportPage() {
             Client Support Center
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Get in touch with your freelancer or contact our support team. We're here to help you succeed.
+            Get in touch with your freelancer or contact our support team.
+            We&apos;re here to help you succeed.
           </p>
         </div>
 
@@ -208,10 +240,12 @@ export default function ClientSupportPage() {
                   <Mail className="w-5 h-5 text-blue-600" />
                   <div>
                     <p className="font-semibold">Email Support</p>
-                    <p className="text-sm text-gray-600">support@yourplatform.com</p>
+                    <p className="text-sm text-gray-600">
+                      support@yourplatform.com
+                    </p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
                   <Phone className="w-5 h-5 text-green-600" />
                   <div>
@@ -219,7 +253,7 @@ export default function ClientSupportPage() {
                     <p className="text-sm text-gray-600">+1 (555) 123-4567</p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg">
                   <MessageSquare className="w-5 h-5 text-purple-600" />
                   <div>
@@ -258,7 +292,8 @@ export default function ClientSupportPage() {
               <CardHeader className="text-center">
                 <CardTitle className="text-2xl">Send us a Message</CardTitle>
                 <CardDescription>
-                  Fill out the form below and we'll get back to you as soon as possible.
+                  Fill out the form below and we&apos;ll get back to you as soon
+                  as possible.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -272,10 +307,14 @@ export default function ClientSupportPage() {
                       <Input
                         id="name"
                         value={formData.name}
-                        onChange={(e) => handleInputChange("name", e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("name", e.target.value)
+                        }
                         placeholder="Enter your full name"
                         disabled={submitting}
-                        className={validationErrors.name ? "border-red-500" : ""}
+                        className={
+                          validationErrors.name ? "border-red-500" : ""
+                        }
                       />
                       {validationErrors.name && (
                         <div className="flex items-center gap-1 text-red-500 text-sm">
@@ -294,10 +333,14 @@ export default function ClientSupportPage() {
                         id="email"
                         type="email"
                         value={formData.email}
-                        onChange={(e) => handleInputChange("email", e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("email", e.target.value)
+                        }
                         placeholder="your.email@example.com"
                         disabled={submitting}
-                        className={validationErrors.email ? "border-red-500" : ""}
+                        className={
+                          validationErrors.email ? "border-red-500" : ""
+                        }
                       />
                       {validationErrors.email && (
                         <div className="flex items-center gap-1 text-red-500 text-sm">
@@ -316,15 +359,24 @@ export default function ClientSupportPage() {
                       </Label>
                       <Select
                         value={formData.category}
-                        onValueChange={(value) => handleInputChange("category", value)}
+                        onValueChange={(value) =>
+                          handleInputChange("category", value)
+                        }
                         disabled={submitting}
                       >
-                        <SelectTrigger className={validationErrors.category ? "border-red-500" : ""}>
+                        <SelectTrigger
+                          className={
+                            validationErrors.category ? "border-red-500" : ""
+                          }
+                        >
                           <SelectValue placeholder="Select a category" />
                         </SelectTrigger>
                         <SelectContent>
                           {categories.map((category) => (
-                            <SelectItem key={category.value} value={category.value}>
+                            <SelectItem
+                              key={category.value}
+                              value={category.value}
+                            >
                               {category.label}
                             </SelectItem>
                           ))}
@@ -343,7 +395,9 @@ export default function ClientSupportPage() {
                       <Label htmlFor="urgency">Urgency Level</Label>
                       <Select
                         value={formData.urgency}
-                        onValueChange={(value) => handleInputChange("urgency", value)}
+                        onValueChange={(value) =>
+                          handleInputChange("urgency", value)
+                        }
                         disabled={submitting}
                       >
                         <SelectTrigger>
@@ -351,7 +405,9 @@ export default function ClientSupportPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="low">Low Priority</SelectItem>
-                          <SelectItem value="medium">Medium Priority</SelectItem>
+                          <SelectItem value="medium">
+                            Medium Priority
+                          </SelectItem>
                           <SelectItem value="high">High Priority</SelectItem>
                         </SelectContent>
                       </Select>
@@ -366,10 +422,14 @@ export default function ClientSupportPage() {
                     <Input
                       id="subject"
                       value={formData.subject}
-                      onChange={(e) => handleInputChange("subject", e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange("subject", e.target.value)
+                      }
                       placeholder="Brief description of your issue"
                       disabled={submitting}
-                      className={validationErrors.subject ? "border-red-500" : ""}
+                      className={
+                        validationErrors.subject ? "border-red-500" : ""
+                      }
                     />
                     {validationErrors.subject && (
                       <div className="flex items-center gap-1 text-red-500 text-sm">
@@ -387,11 +447,15 @@ export default function ClientSupportPage() {
                     <Textarea
                       id="message"
                       value={formData.message}
-                      onChange={(e) => handleInputChange("message", e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange("message", e.target.value)
+                      }
                       placeholder="Please describe your issue or question in detail..."
                       rows={6}
                       disabled={submitting}
-                      className={validationErrors.message ? "border-red-500" : ""}
+                      className={
+                        validationErrors.message ? "border-red-500" : ""
+                      }
                     />
                     {validationErrors.message && (
                       <div className="flex items-center gap-1 text-red-500 text-sm">
@@ -405,9 +469,9 @@ export default function ClientSupportPage() {
                   </div>
 
                   {/* Submit Button */}
-                  <Button 
-                    type="submit" 
-                    disabled={submitting} 
+                  <Button
+                    type="submit"
+                    disabled={submitting}
                     className="w-full h-12 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                     size="lg"
                   >
@@ -440,5 +504,5 @@ export default function ClientSupportPage() {
         )}
       </div>
     </div>
-  )
+  );
 }

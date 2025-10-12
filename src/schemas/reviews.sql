@@ -73,3 +73,7 @@ CREATE INDEX idx_reviews_rating_compound
 CREATE INDEX idx_reviews_created_covering 
   ON reviews(created_at DESC) 
   INCLUDE (project_id, stars);
+
+-- For review aggregation
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_reviews_project_stars 
+ON reviews(project_id, stars);
