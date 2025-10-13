@@ -24,7 +24,10 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const validated = deleteMilestoneSchema.safeParse({ milestoneId, projectId });
+    const validated = deleteMilestoneSchema.safeParse({
+      milestoneId,
+      projectId,
+    });
     if (!validated.success) {
       return NextResponse.json(
         { error: "Validation failed", details: validated.error.flatten() },
@@ -57,7 +60,9 @@ export async function DELETE(request: Request) {
       );
 
       if (milestoneRows.length === 0) {
-        throw new Error("Milestone not found or does not belong to the specified project");
+        throw new Error(
+          "Milestone not found or does not belong to the specified project"
+        );
       }
 
       const milestone = milestoneRows[0];
@@ -140,7 +145,8 @@ export async function DELETE(request: Request) {
     });
   } catch (err: unknown) {
     console.error("Milestone Deletion API Error:", err);
-    const errorMessage = err instanceof Error ? err.message : "Internal server error";
+    const errorMessage =
+      err instanceof Error ? err.message : "Internal server error";
 
     return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
