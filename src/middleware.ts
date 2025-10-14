@@ -33,13 +33,6 @@ export async function middleware(request: NextRequest) {
       // Remove secureCookie for local development
       secureCookie: false, // Set to false for localhost
     });
-
-    console.log(
-      "Middleware token for",
-      pathname,
-      ":",
-      token ? token.email : "Null"
-    );
   } catch (error) {
     console.error("Token retrieval error:", error);
     token = null;
@@ -50,7 +43,6 @@ export async function middleware(request: NextRequest) {
   // Handle unauthenticated users
   if (!token) {
     if (!isPublicPath && !pathname.startsWith("/api/")) {
-      console.log("Redirecting to login from:", pathname);
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(loginUrl);
@@ -69,7 +61,6 @@ export async function middleware(request: NextRequest) {
 
   // Handle email verification
   if (isEmailUser && !isVerified && pathname !== "/otp-verification") {
-    console.log("Redirecting to OTP verification for:", token.email);
     const redirectUrl = new URL("/otp-verification", request.url);
     redirectUrl.searchParams.set("email", token.email || "");
     return NextResponse.redirect(redirectUrl);
@@ -79,10 +70,6 @@ export async function middleware(request: NextRequest) {
   if (isVerified && isPublicPath && pathname !== "/") {
     const authPages = ["/login", "/signup", "/otp-verification"];
     if (authPages.includes(pathname)) {
-      console.log(
-        "Redirecting authenticated user to dashboard from:",
-        pathname
-      );
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
   }

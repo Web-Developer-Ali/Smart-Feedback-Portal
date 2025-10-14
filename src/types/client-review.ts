@@ -1,16 +1,17 @@
 export interface Milestone {
-  id: string
-  title: string
-  description: string
-  status: "pending" |  "approved" | "rejected" | "submitted" | "Not Started"
-  deliverables: Deliverable[]
-  dueDate: string
-  submittedDate?: string
-  price: number
-  duration: string
-  freeRevisions: number
-  usedRevisions: number
-  revisionRate: number
+  id: string;
+  title: string;
+  description: string;
+  status: "pending" | "approved" | "rejected" | "submitted" | "Not Started";
+  deliverables: Deliverable[];
+  dueDate: string;
+  submittedDate?: string;
+  price: number;
+  duration: string;
+  freeRevisions: number;
+  usedRevisions: number;
+  revisionRate: number;
+  hasReview: boolean;
 }
 
 export interface Deliverable {
@@ -20,21 +21,22 @@ export interface Deliverable {
 }
 
 export interface Project {
-  id: string
-  title: string
-  freelancerName: string
-  freelancerAvatar: string
-  totalAmount: number
-  milestones: Milestone[]
-  description: string
-  type: string
-  status: string
+  id: string;
+  title: string;
+  freelancerName: string;
+  freelancerAvatar: string;
+  totalAmount: number;
+  milestones: Milestone[];
+  description: string;
+  type: string;
+  status: string;
+  hasProjectReview: boolean;
 }
 
 export interface ProjectOverviewProps {
-  title: string
-  totalAmount: number
-  description: string
-  type: string
-  status: string
+  title: string;
+  totalAmount: number;
+  description: string;
+  type: string;
+  status: string;
 }

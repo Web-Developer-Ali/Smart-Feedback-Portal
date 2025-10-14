@@ -1,175 +1,263 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { toast } from "sonner"
-import { Star, Loader2, CheckCircle, MessageSquare, AlertCircle } from "lucide-react"
-import { z } from "zod"
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
+import {
+  Star,
+  Loader2,
+  CheckCircle,
+  MessageSquare,
+  AlertCircle,
+} from "lucide-react";
+import { z } from "zod";
+import axios from "axios";
 
 // Zod validation schema - milestoneId is now optional
 const feedbackSchema = z.object({
-  rating: z.number()
+  rating: z
+    .number()
     .min(1, "Please select a rating")
     .max(5, "Rating must be between 1 and 5 stars"),
-  review: z.string()
+  review: z
+    .string()
     .max(2000, "Review must be less than 2000 characters")
     .optional()
     .or(z.literal("")),
   milestoneId: z.string().uuid("Invalid milestone").optional().nullable(),
-  projectId: z.string().uuid("Invalid project")
-})
+  projectId: z.string().uuid("Invalid project"),
+});
 
-type FeedbackFormData = z.infer<typeof feedbackSchema>
+type FeedbackFormData = z.infer<typeof feedbackSchema>;
+
+// Type for API validation errors
+type ApiValidationError = {
+  fieldErrors?: {
+    rating?: string[];
+    review?: string[];
+    milestoneId?: string[];
+    projectId?: string[];
+  };
+  formErrors?: string[];
+};
+
+type ApiErrorResponse = {
+  error?: string;
+  details?: ApiValidationError;
+};
 
 export default function FeedbackForm() {
-  const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-  const [rating, setRating] = useState(0)
-  const [hoveredRating, setHoveredRating] = useState(0)
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [hoveredRating, setHoveredRating] = useState(0);
+  const [validationErrors, setValidationErrors] = useState<
+    Record<string, string>
+  >({});
+  const [apiValidationErrors, setApiValidationErrors] = useState<
+    Record<string, string>
+  >({});
   const [formData, setFormData] = useState({
-    review: ""
-  })
+    review: "",
+  });
 
-  const params = useParams()
-  const router = useRouter()
-  const searchParams = useSearchParams()
+  const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const projectId = params.id as string
-  const milestoneId = searchParams.get("milestoneId")
+  const projectId = params.id as string;
+  const milestoneId = searchParams.get("milestoneId");
 
   const validateForm = (): boolean => {
     try {
       feedbackSchema.parse({
         rating,
         review: formData.review,
-        milestoneId: milestoneId || undefined, // Convert null to undefined
-        projectId
-      })
-      setValidationErrors({})
-      return true
+        milestoneId: milestoneId || undefined,
+        projectId,
+      });
+      setValidationErrors({});
+      setApiValidationErrors({}); // Clear API errors on client-side validation success
+      return true;
     } catch (error) {
       if (error instanceof z.ZodError) {
-        const errors: Record<string, string> = {}
+        const errors: Record<string, string> = {};
         error.errors.forEach((err) => {
           if (err.path[0]) {
-            errors[err.path[0]] = err.message
+            errors[err.path[0]] = err.message;
           }
-        })
-        setValidationErrors(errors)
-        
+        });
+        setValidationErrors(errors);
+
         // Show the first error in toast
-        const firstError = error.errors[0]
+        const firstError = error.errors[0];
         if (firstError) {
-          toast.error(firstError.message)
+          toast.error(firstError.message);
         }
       }
-      return false
+      return false;
     }
-  }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
-    
-    // Clear validation error when user starts typing
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // Clear validation errors when user starts typing
     if (validationErrors[name]) {
-      setValidationErrors(prev => ({ ...prev, [name]: "" }))
+      setValidationErrors((prev) => ({ ...prev, [name]: "" }));
     }
-  }
+    if (apiValidationErrors[name]) {
+      setApiValidationErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
 
   const handleRatingChange = (newRating: number) => {
-    setRating(newRating)
-    
-    // Clear rating validation error when user selects a rating
+    setRating(newRating);
+
+    // Clear validation errors when user selects a rating
     if (validationErrors.rating) {
-      setValidationErrors(prev => ({ ...prev, rating: "" }))
+      setValidationErrors((prev) => ({ ...prev, rating: "" }));
     }
-  }
+    if (apiValidationErrors.rating) {
+      setApiValidationErrors((prev) => ({ ...prev, rating: "" }));
+    }
+  };
+
+  // Helper function to extract and display API validation errors
+  const handleApiValidationErrors = (errorDetails: ApiValidationError) => {
+    const errors: Record<string, string> = {};
+
+    // Handle field errors
+    if (errorDetails.fieldErrors) {
+      Object.entries(errorDetails.fieldErrors).forEach(([field, messages]) => {
+        if (messages && messages.length > 0) {
+          errors[field] = messages[0]; // Show first error for each field
+        }
+      });
+    }
+
+    // Handle form errors
+    if (errorDetails.formErrors && errorDetails.formErrors.length > 0) {
+      toast.error(errorDetails.formErrors[0]);
+    }
+
+    setApiValidationErrors(errors);
+
+    // If there are field errors, show the first one in toast
+    const firstFieldError = Object.values(errors)[0];
+    if (firstFieldError) {
+      toast.error(firstFieldError);
+    }
+  };
 
   const submitFeedback = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     if (!validateForm()) {
-      return
+      return;
     }
 
-    setSubmitting(true)
+    setSubmitting(true);
+    setApiValidationErrors({}); // Clear previous API errors
 
     try {
       const payload: FeedbackFormData = {
         projectId,
         review: formData.review,
         rating,
-        ...(milestoneId && { milestoneId }) // Only include milestoneId if it exists
-      }
+        ...(milestoneId && { milestoneId }),
+      };
 
-      const res = await fetch("/api/client/submit_review", {
-        method: "POST",
+      const response = await axios.post("/api/client/submit_review", payload, {
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
+        timeout: 10000,
+      });
 
-      const data = await res.json()
+      setSubmitted(true);
 
-      if (!res.ok) {
-        throw new Error(data.error || data.details?.rating?.[0] || "Failed to submit review")
-      }
-
-      setSubmitted(true)
-      
-      // Show appropriate success message based on whether it's a project or milestone review
       if (milestoneId) {
-        toast.success("Thank you for your milestone feedback!")
+        toast.success("Thank you for your milestone feedback!");
       } else {
-        toast.success("Thank you for your project feedback!")
+        toast.success("Thank you for your project feedback!");
       }
-      
-      // Redirect after a short delay to show success message
-      setTimeout(() => {
-        if (milestoneId) {
-          // Redirect to milestone review page or project page
-          router.push(`/client/client-review/${projectId}`)
-        } else {
-          // Redirect to project reviews page
-          router.push(`/client/client-review/${projectId}`)
-        }
-      }, 2000)
 
+      setTimeout(() => {
+        router.push(`/client/client-review/${projectId}`);
+      }, 2000);
     } catch (error) {
-      console.error("Submit feedback error:", error)
-      const errorMessage = error instanceof Error ? error.message : "Something went wrong"
-      toast.error(errorMessage)
+      console.error("Submit feedback error:", error);
+
+      let errorMessage = "Something went wrong";
+      let shouldShowValidationErrors = false;
+
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          const serverError: ApiErrorResponse = error.response.data;
+
+          // Check if it's a validation error with details
+          if (error.response.status === 400 && serverError.details) {
+            shouldShowValidationErrors = true;
+            handleApiValidationErrors(serverError.details);
+            errorMessage =
+              serverError.error || "Please check the form for errors";
+          } else {
+            errorMessage = serverError.error || "Failed to submit review";
+          }
+        } else if (error.request) {
+          errorMessage = "Network error - please check your connection";
+        } else {
+          errorMessage = error.message;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
+      // Only show toast if we're not showing field-level validation errors
+      if (!shouldShowValidationErrors) {
+        toast.error(errorMessage);
+      }
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
+
+  // Combine client-side and API validation errors for display
+  const getFieldError = (fieldName: string): string | undefined => {
+    return apiValidationErrors[fieldName] || validationErrors[fieldName];
+  };
 
   // Get appropriate title and description based on whether it's a project or milestone review
   const getFormTitle = () => {
     if (milestoneId) {
-      return "Milestone Feedback"
+      return "Milestone Feedback";
     }
-    return "Project Feedback"
-  }
+    return "Project Feedback";
+  };
 
   const getFormDescription = () => {
     if (milestoneId) {
-      return "We'd love to hear about your experience with this specific milestone."
+      return "We'd love to hear about your experience with this specific milestone.";
     }
-    return "We'd love to hear about your overall experience with this project."
-  }
+    return "We'd love to hear about your overall experience with this project.";
+  };
 
   const getPlaceholderText = () => {
     if (milestoneId) {
-      return "Share your thoughts about this specific milestone..."
+      return "Share your thoughts about this specific milestone...";
     }
-    return "Share your overall thoughts about the project..."
-  }
+    return "Share your overall thoughts about the project...";
+  };
 
   if (submitted) {
     return (
@@ -179,26 +267,30 @@ export default function FeedbackForm() {
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Thank You!</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Thank You!
+            </h2>
             <p className="text-gray-600 mb-6">
-              {milestoneId 
-                ? "Your milestone feedback has been submitted successfully." 
-                : "Your project feedback has been submitted successfully."
-              }
+              {milestoneId
+                ? "Your milestone feedback has been submitted successfully."
+                : "Your project feedback has been submitted successfully."}
             </p>
             <div className="flex space-x-3">
-              <Button 
-                variant="outline" 
-                onClick={() => router.push(`/client/client-review/${projectId}`)}
+              <Button
+                variant="outline"
+                onClick={() =>
+                  router.push(`/client/client-review/${projectId}`)
+                }
                 className="flex-1"
               >
                 Back to Project
               </Button>
-              <Button 
+              <Button
                 onClick={() => {
-                  setSubmitted(false)
-                  setRating(0)
-                  setFormData({ review: "" })
+                  setSubmitted(false);
+                  setRating(0);
+                  setFormData({ review: "" });
+                  setApiValidationErrors({});
                 }}
                 className="flex-1"
               >
@@ -208,7 +300,7 @@ export default function FeedbackForm() {
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   return (
@@ -219,7 +311,9 @@ export default function FeedbackForm() {
             <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
               <MessageSquare className="w-8 h-8 text-white" />
             </div>
-            <CardTitle className="text-3xl font-bold">{getFormTitle()}</CardTitle>
+            <CardTitle className="text-3xl font-bold">
+              {getFormTitle()}
+            </CardTitle>
             <CardDescription className="text-lg">
               {getFormDescription()}
             </CardDescription>
@@ -259,10 +353,10 @@ export default function FeedbackForm() {
                     </button>
                   ))}
                 </div>
-                {validationErrors.rating && (
+                {getFieldError("rating") && (
                   <div className="flex items-center justify-center gap-1 text-red-500 text-sm mt-1">
                     <AlertCircle className="w-4 h-4" />
-                    <span>{validationErrors.rating}</span>
+                    <span>{getFieldError("rating")}</span>
                   </div>
                 )}
                 <p className="text-sm text-gray-500 mt-2">
@@ -281,8 +375,8 @@ export default function FeedbackForm() {
                   Tell us more (optional)
                   {milestoneId && " - about this milestone"}
                 </Label>
-                <Textarea 
-                  id="review" 
+                <Textarea
+                  id="review"
                   name="review"
                   value={formData.review}
                   onChange={handleInputChange}
@@ -290,10 +384,10 @@ export default function FeedbackForm() {
                   placeholder={getPlaceholderText()}
                   disabled={submitting}
                 />
-                {validationErrors.review && (
+                {getFieldError("review") && (
                   <div className="flex items-center gap-1 text-red-500 text-sm mt-1">
                     <AlertCircle className="w-4 h-4" />
-                    <span>{validationErrors.review}</span>
+                    <span>{getFieldError("review")}</span>
                   </div>
                 )}
                 <p className="text-xs text-gray-500 mt-1">
@@ -302,9 +396,9 @@ export default function FeedbackForm() {
               </div>
 
               {/* Submit Button */}
-              <Button 
-                type="submit" 
-                disabled={submitting || rating === 0} 
+              <Button
+                type="submit"
+                disabled={submitting || rating === 0}
                 className="w-full h-12 text-lg relative"
               >
                 {submitting ? (
@@ -314,7 +408,7 @@ export default function FeedbackForm() {
                     <div className="absolute inset-0 bg-white/20 rounded-md"></div>
                   </>
                 ) : (
-                  `Submit ${milestoneId ? 'Milestone' : 'Project'} Feedback`
+                  `Submit ${milestoneId ? "Milestone" : "Project"} Feedback`
                 )}
               </Button>
 
@@ -323,7 +417,9 @@ export default function FeedbackForm() {
                 <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
                   <div className="bg-white p-6 rounded-lg shadow-xl flex items-center gap-3">
                     <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                    <span className="text-gray-700">Submitting your feedback...</span>
+                    <span className="text-gray-700">
+                      Submitting your feedback...
+                    </span>
                   </div>
                 </div>
               )}
@@ -332,5 +428,5 @@ export default function FeedbackForm() {
         </Card>
       </div>
     </div>
-  )
+  );
 }

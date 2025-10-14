@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/options";
-import { withTransaction } from "@/lib/db"; // use your pooled transaction client
+import { withTransaction } from "@/lib/db";
 import { z } from "zod";
 import {
   Deliverable,
@@ -34,17 +34,6 @@ export async function GET(request: Request) {
       );
     }
 
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id && !session?.user?.email) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
-
-    const userId = session?.user?.id;
-    const userEmail = session?.user?.email;
-
     const projectData = await withTransaction(async (client) => {
       // Fetch project
       const projectResult = await client.query(
@@ -59,13 +48,8 @@ export async function GET(request: Request) {
 
       const project = projectResult.rows[0];
 
-      // Auth check
-      if (project.agency_id !== userId && project.client_email !== userEmail) {
-        throw new Error("Unauthorized");
-      }
-
-      // Fetch milestones + media in parallel with same client
-      const [milestonesResult, mediaResult] = await Promise.all([
+      // Fetch milestones + media + reviews in parallel with same client
+      const [milestonesResult, mediaResult, reviewsResult] = await Promise.all([
         client.query(
           `SELECT id, title, description, status, milestone_price, duration_days, 
                   free_revisions, used_revisions, revision_rate, created_at, submitted_at
@@ -79,10 +63,29 @@ export async function GET(request: Request) {
            FROM media_attachments WHERE project_id = $1`,
           [projectId]
         ),
+        client.query(
+          `SELECT milestone_id
+           FROM reviews 
+           WHERE project_id = $1`,
+          [projectId]
+        ),
       ]);
 
       const milestones = milestonesResult.rows || [];
       const mediaAttachments = mediaResult.rows || [];
+      const reviews = reviewsResult.rows || [];
+
+      // Check for project review (milestone_id IS NULL)
+      const hasProjectReview = reviews.some(
+        (review: any) => review.milestone_id === null
+      );
+
+      // Create a set of milestone IDs that have reviews for quick lookup
+      const milestoneIdsWithReviews = new Set(
+        reviews
+          .filter((review: any) => review.milestone_id !== null)
+          .map((review: any) => review.milestone_id)
+      );
 
       // Group media by milestone
       const mediaByMilestone = mediaAttachments.reduce(
@@ -102,8 +105,10 @@ export async function GET(request: Request) {
         freelancerName: project.client_name,
         freelancerAvatar: "/professional-woman-developer.png",
         totalAmount: project.project_price,
+        hasProjectReview,
         milestones: milestones.map((m) => {
           const milestoneMedia = mediaByMilestone[m.id] || [];
+
           const deliverables: Deliverable[] = [];
 
           milestoneMedia.forEach((media: MediaAttachment) => {
@@ -154,6 +159,8 @@ export async function GET(request: Request) {
             freeRevisions: m.free_revisions || 0,
             usedRevisions: m.used_revisions || 0,
             revisionRate: m.revision_rate || 0,
+            // Milestone review flag only (no detailed review object)
+            hasReview: milestoneIdsWithReviews.has(m.id),
           };
         }),
       };
@@ -215,4 +222,4 @@ function calculateDueDate(createdAt: string, durationDays: number): string {
   return date.toISOString().split("T")[0];
 }
 
-export const dynamic = "force-dynamic"; // Optional: if you want to ensure dynamic behavior
+export const dynamic = "force-dynamic";

@@ -8,7 +8,13 @@ export interface Milestone {
   id: string;
   title: string;
   description: string;
-  status: "pending" | "submitted" | "approved" | "rejected" | "in_progress" | "Not Started";
+  status:
+    | "pending"
+    | "submitted"
+    | "approved"
+    | "rejected"
+    | "in_progress"
+    | "Not Started";
   deliverables: Deliverable[];
   dueDate: string | null;
   submittedDate: string | undefined;
@@ -36,4 +42,5 @@ export interface ProjectResponse {
   freelancerAvatar: string;
   totalAmount: number;
   milestones: Milestone[];
+  hasProjectReview: boolean;
 }

@@ -32,6 +32,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Milestone } from "@/types/client-review";
+import axios, { AxiosError } from "axios";
+import { toast } from "sonner";
 
 interface MilestoneCardProps {
   milestone: Milestone;
@@ -109,17 +111,31 @@ export const MilestoneCard = memo(function MilestoneCard({
     window.location.href = `/client/feedback/${projectId}?milestoneId=${milestone.id}`;
   }, [projectId, milestone.id]);
 
-  const handleFileClick = useCallback((url: string, event: React.MouseEvent) => {
-    event.preventDefault();
-    if (url && !url.startsWith('#file-not-available')) {
-      window.open(url, '_blank', 'noopener,noreferrer');
+  const handleDownload = async (publicId: string, fileName: string) => {
+    try {
+      const response = await axios.post("/api/file_handling/get_presignUrl", {
+        filename: fileName,
+        type: "application/octet-stream",
+        size: 0,
+        mode: "read",
+        key: publicId,
+      });
+
+      const { data } = response.data;
+      if (!data?.url) throw new Error("Failed to get download URL");
+      window.open(data.url, "_blank");
+    } catch (error: unknown) {
+      const axiosError = error as AxiosError<{ error?: string }>;
+      console.error("Download error:", axiosError);
+      toast.error(
+        axiosError.response?.data?.error || "Failed to download file"
+      );
     }
-  }, []);
+  };
 
   // check revision policy
   const hasFreeRevisionsLeft =
     milestone.usedRevisions < milestone.freeRevisions;
-
   return (
     <>
       <Card className="bg-white border border-gray-200 shadow-lg hover:shadow-xl transition-shadow">
@@ -215,7 +231,9 @@ export const MilestoneCard = memo(function MilestoneCard({
                 {milestone.deliverables && milestone.deliverables.length > 0 ? (
                   <ul className="space-y-2">
                     {milestone.deliverables.map((deliverable, index) => {
-                      const isClickable = deliverable.url && !deliverable.url.startsWith('#file-not-available');
+                      const isClickable =
+                        deliverable.url &&
+                        !deliverable.url.startsWith("#file-not-available");
                       return (
                         <li
                           key={index}
@@ -223,17 +241,19 @@ export const MilestoneCard = memo(function MilestoneCard({
                         >
                           <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
                           {isClickable ? (
-                            <a
-                              href={deliverable.url}
-                              onClick={(e) => handleFileClick(deliverable.url, e)}
-                              className="text-blue-600 hover:text-blue-800 underline cursor-pointer flex items-center space-x-1 group-hover:bg-blue-50 px-2 py-1 rounded transition-colors"
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <Button
+                              onClick={() =>
+                                handleDownload(
+                                  deliverable.url,
+                                  deliverable.name
+                                )
+                              }
+                              className="group flex items-center space-x-1 text-blue-600 bg-white hover:bg-blue-100 hover:text-blue-800 underline cursor-pointer px-2 py-1 rounded transition-colors"
                             >
                               <FileText className="h-3 w-3" />
                               <span>{deliverable.name}</span>
                               <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </a>
+                            </Button>
                           ) : (
                             <span className="text-gray-700 flex items-center space-x-1">
                               <FileText className="h-3 w-3" />
@@ -241,7 +261,9 @@ export const MilestoneCard = memo(function MilestoneCard({
                             </span>
                           )}
                           {deliverable.notes && (
-                            <span className="text-gray-500 text-xs">- {deliverable.notes}</span>
+                            <span className="text-gray-500 text-xs">
+                              - {deliverable.notes}
+                            </span>
                           )}
                         </li>
                       );
@@ -283,7 +305,7 @@ export const MilestoneCard = memo(function MilestoneCard({
             )}
 
             {/* Feedback after approval */}
-            {milestone.status === "approved" && (
+            {milestone.status === "approved" && !milestone.hasReview && (
               <div className="pt-4 border-t border-gray-200">
                 <Button
                   onClick={handleGiveFeedback}
