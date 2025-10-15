@@ -10,8 +10,8 @@ const approveMilestoneSchema = z.object({
 export async function POST(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const milestoneId = searchParams.get('milestoneId');
-    
+    const milestoneId = searchParams.get("milestoneId");
+
     if (!milestoneId) {
       return NextResponse.json(
         { error: "MilestoneId query parameter is required" },
@@ -24,9 +24,9 @@ export async function POST(request: Request) {
 
     if (!validated.success) {
       return NextResponse.json(
-        { 
-          error: "Validation failed", 
-          details: validated.error.flatten() 
+        {
+          error: "Validation failed",
+          details: validated.error.flatten(),
         },
         { status: 400 }
       );
@@ -46,13 +46,13 @@ export async function POST(request: Request) {
 
       const projectId = projectResult.rows[0].project_id;
 
-      // 2. Update milestone status
+      // 2. Update milestone status and set is_archived to true
       const updateResult = await client.query(
         `UPDATE milestones 
-         SET status = $1, updated_at = $2
-         WHERE id = $3
+         SET status = $1, is_archived = $2, updated_at = $3
+         WHERE id = $4
          RETURNING *`,
-        ["approved", new Date().toISOString(), milestoneId]
+        ["approved", true, new Date().toISOString(), milestoneId]
       );
 
       if (!updateResult.rows.length) {
@@ -70,12 +70,16 @@ export async function POST(request: Request) {
         [projectId]
       );
 
-      const { total_milestones, approved_milestones, pending_milestones } = milestonesCheck.rows[0];
+      const { total_milestones, approved_milestones, pending_milestones } =
+        milestonesCheck.rows[0];
 
       let projectUpdated = false;
 
       // 4. If all milestones are approved, update project status to "completed"
-      if (parseInt(approved_milestones) === parseInt(total_milestones) && parseInt(pending_milestones) === 0) {
+      if (
+        parseInt(approved_milestones) === parseInt(total_milestones) &&
+        parseInt(pending_milestones) === 0
+      ) {
         await client.query(
           `UPDATE project 
            SET status = $1, updated_at = $2
@@ -92,27 +96,25 @@ export async function POST(request: Request) {
         milestones: {
           total: parseInt(total_milestones),
           approved: parseInt(approved_milestones),
-          pending: parseInt(pending_milestones)
-        }
+          pending: parseInt(pending_milestones),
+        },
       };
     });
 
     return NextResponse.json({
       success: true,
-      message: result.projectUpdated 
-        ? "Milestone approved successfully and project marked as completed" 
+      message: result.projectUpdated
+        ? "Milestone approved successfully and project marked as completed"
         : "Milestone approved successfully",
-      milestone: result.milestone,
-      project: {
-        id: result.projectId,
-        status: result.projectUpdated ? "completed" : "in_progress",
-        milestones: result.milestones
-      }
+      data: {
+        milestone: result.milestone,
+        projectUpdated: result.projectUpdated,
+        milestones: result.milestones,
+      },
     });
-
   } catch (error: unknown) {
     console.error("API Error:", error);
-    
+
     if (error instanceof Error) {
       if (error.message === "Milestone not found") {
         return NextResponse.json({ error: error.message }, { status: 404 });
@@ -121,8 +123,9 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
     }
-    
-    const errorMessage = error instanceof Error ? error.message : "Internal server error";
+
+    const errorMessage =
+      error instanceof Error ? error.message : "Internal server error";
     return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

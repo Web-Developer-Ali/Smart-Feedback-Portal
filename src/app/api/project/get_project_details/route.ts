@@ -94,6 +94,7 @@ export async function GET(request: Request) {
                 'public_ids', ma.public_ids,
                 'uploaded_at', ma.uploaded_at,
                 'submission_notes', ma.submission_notes,
+                'submission_status', ma.submission_status,
                 'uploaded_by', ma.uploaded_by
               )
             ) as deliverables
@@ -122,7 +123,7 @@ export async function GET(request: Request) {
         client_name: project.client_name,
         client_email: project.client_email,
         project_duration_days: project.project_duration_days,
-        milestones: project.milestones.map((m:Milestone) => ({
+        milestones: project.milestones.map((m: Milestone) => ({
           milestone_id: m.id,
           milestone_price: m.milestone_price,
           duration_days: m.duration_days,
@@ -134,16 +135,17 @@ export async function GET(request: Request) {
           used_revisions: m.used_revisions,
           priority: m.priority || 0,
           reviews: m.reviews || [],
-          deliverables: (m.deliverables || []).map((d:Deliverable) => ({
+          deliverables: (m.deliverables || []).map((d: Deliverable) => ({
             id: d.id,
             name: d.file_names?.[0] || "File Not Submitted",
             uploaded_at: d.uploaded_at,
             submission_notes: d.submission_notes,
             uploaded_by: d.uploaded_by,
+            submission_status: d.submission_status,
             file_count: d.file_names?.length || 0,
-            public_ids: d.public_ids || []
-          }))
-        }))
+            public_ids: d.public_ids || [],
+          })),
+        })),
       };
     });
 
@@ -159,11 +161,14 @@ export async function GET(request: Request) {
 
     const status =
       error && typeof error === "object" && "status" in error
-        ? (error).status
+        ? error.status
         : 500;
     const message =
-      status === 500 ? "Internal server error" : 
-      error instanceof Error ? error.message : "An error occurred";
+      status === 500
+        ? "Internal server error"
+        : error instanceof Error
+        ? error.message
+        : "An error occurred";
 
     return NextResponse.json(
       {

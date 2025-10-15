@@ -15,7 +15,8 @@ CREATE TABLE media_attachments (
 
   -- Submission notes
   submission_notes TEXT NOT NULL CHECK (char_length(trim(submission_notes)) BETWEEN 5 AND 500),
-
+ submission_status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (submission_status IN ('pending', 'approved', 'rejected')),
   -- Timestamps
   uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

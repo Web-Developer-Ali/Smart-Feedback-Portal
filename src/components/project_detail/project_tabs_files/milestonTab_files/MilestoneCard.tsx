@@ -1,24 +1,29 @@
-import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
-  DollarSign, 
-  Clock, 
-  Calendar, 
-  FileText, 
-  Upload, 
-  Target, 
-  CheckCircle, 
-  MessageSquare, 
+import {
+  DollarSign,
+  Clock,
+  Calendar,
+  FileText,
+  Upload,
+  Target,
+  CheckCircle,
+  MessageSquare,
   RefreshCw,
   Edit,
-  Trash2
+  Trash2,
+  XCircle,
 } from "lucide-react";
 import type { Milestone } from "@/types/api-projectDetails";
 import { JSX } from "react";
 import { startMilestone } from "../supportive_functions";
 import DeliverableItem from "./DeliverableItem";
-
 
 interface MilestoneCardProps {
   milestone: Milestone;
@@ -61,7 +66,9 @@ export default function MilestoneCard({
           </div>
           <div className="flex items-center gap-3">
             <Badge
-              className={`${getStatusColor(milestone.status)} flex items-center gap-1 px-3 py-1`}
+              className={`${getStatusColor(
+                milestone.status
+              )} flex items-center gap-1 px-3 py-1`}
             >
               {getStatusIcon(milestone.status)}
               {milestone.status.replace("_", " ")}
@@ -105,9 +112,12 @@ export default function MilestoneCard({
       <CardContent className="p-6">
         <MilestoneStats milestone={milestone} />
         <RevisionInfo milestone={milestone} />
-        <DeliverablesSection milestone={milestone} onRefreshProject={onRefreshProject} />
+        <DeliverablesSection
+          milestone={milestone}
+          onRefreshProject={onRefreshProject}
+        />
         <SubmissionNotes milestone={milestone} />
-        <ActionButtons 
+        <ActionButtons
           milestone={milestone}
           onSubmitMilestone={onSubmitMilestone}
           onRefreshProject={onRefreshProject}
@@ -162,27 +172,41 @@ function RevisionInfo({ milestone }: { milestone: Milestone }) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
         <div>
           <span className="font-medium text-amber-700">Free Revisions:</span>
-          <div className="text-amber-800 font-bold">{milestone.free_revisions}</div>
+          <div className="text-amber-800 font-bold">
+            {milestone.free_revisions}
+          </div>
         </div>
         <div>
           <span className="font-medium text-amber-700">Used Revisions:</span>
-          <div className="text-amber-800 font-bold">{milestone.used_revisions}</div>
+          <div className="text-amber-800 font-bold">
+            {milestone.used_revisions}
+          </div>
         </div>
         <div>
           <span className="font-medium text-amber-700">Rate After Limit:</span>
-          <div className="text-amber-800 font-bold">${milestone.revision_rate}</div>
+          <div className="text-amber-800 font-bold">
+            ${milestone.revision_rate}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function DeliverablesSection({ milestone, onRefreshProject }: { milestone: Milestone; onRefreshProject?: () => void }) {
+function DeliverablesSection({
+  milestone,
+  onRefreshProject,
+}: {
+  milestone: Milestone;
+  onRefreshProject?: () => void;
+}) {
   if (!milestone.deliverables || milestone.deliverables.length === 0) {
     return (
       <div className="mb-6 p-6 text-center border-2 border-dashed border-gray-300 rounded-xl bg-gray-50">
         <FileText className="h-12 w-12 mx-auto text-gray-400 mb-3" />
-        <h4 className="font-semibold text-gray-700 mb-1">No Deliverables Yet</h4>
+        <h4 className="font-semibold text-gray-700 mb-1">
+          No Deliverables Yet
+        </h4>
         <p className="text-sm text-gray-500">
           Files will appear here once they are submitted for this milestone.
         </p>
@@ -191,7 +215,7 @@ function DeliverablesSection({ milestone, onRefreshProject }: { milestone: Miles
   }
 
   const totalFiles = milestone.deliverables.reduce(
-    (total, deliverable) => total + (deliverable.file_count || 1), 
+    (total, deliverable) => total + (deliverable.file_count || 1),
     0
   );
 
@@ -204,7 +228,7 @@ function DeliverablesSection({ milestone, onRefreshProject }: { milestone: Miles
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {milestone.deliverables.map((deliverable) => (
           <DeliverableItem
-            key={deliverable.id} 
+            key={deliverable.id}
             deliverable={deliverable}
             milestoneId={milestone.id}
             onRefreshProject={onRefreshProject}
@@ -216,15 +240,27 @@ function DeliverablesSection({ milestone, onRefreshProject }: { milestone: Miles
 }
 
 function SubmissionNotes({ milestone }: { milestone: Milestone }) {
-  const deliverablesWithNotes = milestone.deliverables?.filter(
-    deliverable => deliverable.submission_notes?.trim()
-  ) || [];
+  console.log(milestone);
+  const deliverablesWithNotes =
+    milestone.deliverables?.filter((deliverable) =>
+      deliverable.submission_notes?.trim()
+    ) || [];
+
+  const hasApprovedDeliverables = milestone.deliverables?.some(
+    (deliverable) => deliverable.submission_status?.trim() === "approved"
+  );
+
+  const hasPendingDeliverables = milestone.deliverables?.some(
+    (deliverable) => deliverable.submission_status?.trim() === "pending"
+  );
+  const deliverablesApproved =
+    hasApprovedDeliverables || hasPendingDeliverables;
 
   if (deliverablesWithNotes.length === 0) {
     return null;
   }
 
-  return (
+  return deliverablesApproved ? (
     <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
       <h4 className="font-semibold mb-3 text-blue-800 flex items-center gap-2">
         <MessageSquare className="h-4 w-4" />
@@ -232,7 +268,10 @@ function SubmissionNotes({ milestone }: { milestone: Milestone }) {
       </h4>
       <div className="space-y-3">
         {deliverablesWithNotes.map((deliverable, index) => (
-          <div key={deliverable.id} className="bg-white p-3 rounded-lg border border-blue-100">
+          <div
+            key={deliverable.id}
+            className="bg-white p-3 rounded-lg border border-blue-100"
+          >
             <div className="flex items-start gap-2 mb-2">
               <FileText className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
               <div className="min-w-0 flex-1">
@@ -251,14 +290,51 @@ function SubmissionNotes({ milestone }: { milestone: Milestone }) {
         ))}
       </div>
     </div>
+  ) : (
+    // Rejection block - renders when milestone is rejected
+    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+      <h4 className="font-semibold mb-3 text-red-800 flex items-center gap-2">
+        <XCircle className="h-4 w-4" />
+        Revision Notes ({deliverablesWithNotes.length})
+      </h4>
+      <div className="space-y-3">
+        {deliverablesWithNotes.map((deliverable, index) => (
+          <div
+            key={deliverable.id}
+            className="bg-white p-3 rounded-lg border border-red-100"
+          >
+            <div className="flex items-start gap-2 mb-2">
+              <FileText className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-red-900 text-sm truncate">
+                  {deliverable.name}
+                </div>
+                {deliverablesWithNotes.length > 1 && (
+                  <div className="text-xs text-red-600">Note {index + 1}</div>
+                )}
+              </div>
+            </div>
+            <p className="text-sm text-red-700 leading-relaxed pl-6">
+              {deliverable.submission_notes}
+            </p>
+          </div>
+        ))}
+      </div>
+      {/* Informative message for rejected milestone */}
+      <div className="mt-4 p-3 bg-red-100 border border-red-300 rounded-lg">
+        <p className="text-sm text-red-800 font-medium">
+          Please delete your old submission to make a new one
+        </p>
+      </div>
+    </div>
   );
 }
 
-function ActionButtons({ 
-  milestone, 
-  onSubmitMilestone, 
-  onRefreshProject 
-}: { 
+function ActionButtons({
+  milestone,
+  onSubmitMilestone,
+  onRefreshProject,
+}: {
   milestone: Milestone;
   onSubmitMilestone: (milestone: Milestone) => void;
   onRefreshProject?: () => void;

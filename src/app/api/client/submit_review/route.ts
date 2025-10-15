@@ -1,4 +1,3 @@
-// app/api/reviews/submit/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/options";
@@ -9,8 +8,14 @@ import { z } from "zod";
 const submitReviewSchema = z.object({
   milestoneId: z.string().uuid().optional().nullable(),
   projectId: z.string().uuid(),
-  review: z.string().min(10, "Review must be at least 10 characters").max(2000, "Review must be less than 2000 characters"),
-  rating: z.number().min(1, "Rating must be at least 1").max(5, "Rating must be at most 5"),
+  review: z
+    .string()
+    .min(10, "Review must be at least 10 characters")
+    .max(2000, "Review must be less than 2000 characters"),
+  rating: z
+    .number()
+    .min(1, "Rating must be at least 1")
+    .max(5, "Rating must be at most 5"),
 });
 
 export async function POST(request: Request) {
@@ -30,14 +35,17 @@ export async function POST(request: Request) {
     // Verify user session
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
     }
     const userId = session.user.id;
 
     const now = new Date().toISOString();
 
     // Use transaction wrapper
-    const result = await withTransaction(async (client) => {
+    await withTransaction(async (client) => {
       if (milestoneId) {
         // MILESTONE REVIEW FLOW
         // Verify milestone + project
@@ -52,12 +60,17 @@ export async function POST(request: Request) {
         );
 
         if (!milestoneRes.rows.length) {
-          throw new Error("Milestone not found or does not belong to the specified project");
+          throw new Error(
+            "Milestone not found or does not belong to the specified project"
+          );
         }
         const milestone = milestoneRes.rows[0];
 
         // Authorization: must be agency owner OR client
-        if (milestone.agency_id !== userId && milestone.client_email !== session.user.email) {
+        if (
+          milestone.agency_id !== userId &&
+          milestone.client_email !== session.user.email
+        ) {
           throw new Error("Unauthorized access to milestone");
         }
 
@@ -104,8 +117,10 @@ export async function POST(request: Request) {
               rating,
               project_name: milestone.project_name,
               milestone_title: milestone.title,
-              review_preview: review.trim().substring(0, 100) + (review.length > 100 ? "..." : ""),
-              review_type: "milestone"
+              review_preview:
+                review.trim().substring(0, 100) +
+                (review.length > 100 ? "..." : ""),
+              review_type: "milestone",
             }),
           ]
         );
@@ -120,9 +135,8 @@ export async function POST(request: Request) {
             created_at: newReview.created_at,
           },
           activityLogged: activityRes.rows.length > 0,
-          reviewType: "milestone" as const
+          reviewType: "milestone" as const,
         };
-
       } else {
         // PROJECT REVIEW FLOW
         // Verify project exists and user has access
@@ -141,7 +155,10 @@ export async function POST(request: Request) {
         const project = projectRes.rows[0];
 
         // Authorization: must be agency owner OR client
-        if (project.agency_id !== userId && project.client_email !== session.user.email) {
+        if (
+          project.agency_id !== userId &&
+          project.client_email !== session.user.email
+        ) {
           throw new Error("Unauthorized access to project");
         }
 
@@ -186,8 +203,10 @@ export async function POST(request: Request) {
               review_id: newReview.id,
               rating,
               project_name: project.name,
-              review_preview: review.trim().substring(0, 100) + (review.length > 100 ? "..." : ""),
-              review_type: "project"
+              review_preview:
+                review.trim().substring(0, 100) +
+                (review.length > 100 ? "..." : ""),
+              review_type: "project",
             }),
           ]
         );
@@ -202,33 +221,34 @@ export async function POST(request: Request) {
             created_at: newReview.created_at,
           },
           activityLogged: activityRes.rows.length > 0,
-          reviewType: "project" as const
+          reviewType: "project" as const,
         };
       }
     });
 
     return NextResponse.json({
       success: true,
-      message: milestoneId 
-        ? "Milestone review submitted successfully" 
+      message: milestoneId
+        ? "Milestone review submitted successfully"
         : "Project review submitted successfully",
-      data: result,
     });
   } catch (error: unknown) {
     console.error("Submit Review API Error:", error);
-    
+
     // Handle specific error types with appropriate status codes
     let statusCode = 500;
-    const errorMessage = error instanceof Error ? error.message : "Internal server error";
-    
+    const errorMessage =
+      error instanceof Error ? error.message : "Internal server error";
+
     if (errorMessage === "Authentication required") statusCode = 401;
     else if (errorMessage.includes("Unauthorized")) statusCode = 403;
     else if (errorMessage.includes("not found")) statusCode = 404;
-    else if (errorMessage.includes("already exists") || errorMessage.includes("Validation failed")) statusCode = 400;
+    else if (
+      errorMessage.includes("already exists") ||
+      errorMessage.includes("Validation failed")
+    )
+      statusCode = 400;
 
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: statusCode }
-    );
+    return NextResponse.json({ error: errorMessage }, { status: statusCode });
   }
 }

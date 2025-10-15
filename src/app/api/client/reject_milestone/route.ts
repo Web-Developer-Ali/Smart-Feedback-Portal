@@ -1,7 +1,4 @@
-// app/api/milestones/reject/route.ts
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../auth/[...nextauth]/options";
 import { withTransaction } from "@/lib/db";
 import { z } from "zod";
 
@@ -32,21 +29,14 @@ export async function POST(request: Request) {
 
     const { milestoneId, projectId, revisionNotes } = validated.data;
 
-    // Verify user session
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
-    }
-    const userId = session.user.id;
-
     const now = new Date().toISOString();
 
     // Transaction block
     const result = await withTransaction(async (client) => {
-      // Fetch milestone + project
+      // Fetch milestone
       const milestoneRes = await client.query(
         `
-        SELECT m.*, p.agency_id, p.project_price AS current_project_price, p.name AS project_name
+        SELECT m.*, p.project_price AS current_project_price
         FROM milestones m
         JOIN project p ON m.project_id = p.id
         WHERE m.id = $1 AND m.project_id = $2
@@ -55,15 +45,12 @@ export async function POST(request: Request) {
       );
 
       if (!milestoneRes.rows.length) {
-        throw new Error("Milestone not found or does not belong to the specified project");
+        throw new Error(
+          "Milestone not found or does not belong to the specified project"
+        );
       }
 
       const milestone = milestoneRes.rows[0];
-
-      // Authorization
-      if (milestone.agency_id !== userId) {
-        throw new Error("Unauthorized access to milestone");
-      }
 
       // Validation on status
       if (milestone.status === "rejected") {
@@ -76,13 +63,15 @@ export async function POST(request: Request) {
       }
 
       // Revision logic
-      const hasFreeRevisions = milestone.used_revisions < milestone.free_revisions;
+      const hasFreeRevisions =
+        milestone.used_revisions < milestone.free_revisions;
       let revisionCharge = 0;
       let newMilestonePrice = milestone.milestone_price;
       let newProjectPrice = milestone.current_project_price;
 
       if (!hasFreeRevisions && milestone.revision_rate > 0) {
-        revisionCharge = milestone.milestone_price * (milestone.revision_rate / 100);
+        revisionCharge =
+          milestone.milestone_price * (milestone.revision_rate / 100);
         newMilestonePrice += revisionCharge;
         newProjectPrice += revisionCharge;
       }
@@ -105,6 +94,18 @@ export async function POST(request: Request) {
         throw new Error("Failed to update milestone");
       }
 
+      // Update media_attachments - set submission_status to 'rejected' and update submission_notes with revision notes
+      const mediaUpdateRes = await client.query(
+        `
+        UPDATE media_attachments 
+        SET submission_status = 'rejected',
+            submission_notes = $1
+        WHERE milestone_id = $2 AND project_id = $3
+        RETURNING id
+        `,
+        [revisionNotes, milestoneId, projectId]
+      );
+
       // Update project price if revision charge applied
       if (revisionCharge > 0) {
         await client.query(
@@ -113,52 +114,12 @@ export async function POST(request: Request) {
         );
       }
 
-      // Insert rejection message
-      const messageRes = await client.query(
-        `
-        INSERT INTO messages (type, content, project_id, milestone_id, created_by, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING id
-        `,
-        ["rejection", revisionNotes, projectId, milestoneId, userId, now]
-      );
-
-      // Insert activity log
-      const activityRes = await client.query(
-        `
-        INSERT INTO project_activities (
-          project_id, milestone_id, activity_type, description, performed_by, metadata, created_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, NOW())
-        RETURNING id
-        `,
-        [
-          projectId,
-          milestoneId,
-          "milestone_rejected",
-          `Milestone "${milestone.title}" rejected with revision notes`,
-          userId,
-          JSON.stringify({
-            previous_status: "submitted",
-            new_status: "rejected",
-            revision_notes: revisionNotes,
-            has_free_revisions: hasFreeRevisions,
-            revision_charge: revisionCharge,
-            new_milestone_price: newMilestonePrice,
-            new_project_price: newProjectPrice,
-            used_revisions: milestone.used_revisions + 1,
-            free_revisions: milestone.free_revisions,
-          }),
-        ]
-      );
-
       return {
         hasFreeRevisions,
         revisionCharge,
         newMilestonePrice,
         newProjectPrice,
-        messageCreated: messageRes.rows.length > 0,
-        activityLogged: activityRes.rows.length > 0,
+        mediaAttachmentsUpdated: mediaUpdateRes.rows.length,
       };
     });
 
@@ -170,7 +131,9 @@ export async function POST(request: Request) {
   } catch (error: unknown) {
     console.error("Reject Milestone API Error:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
+      {
+        error: error instanceof Error ? error.message : "Internal server error",
+      },
       { status: 500 }
     );
   }

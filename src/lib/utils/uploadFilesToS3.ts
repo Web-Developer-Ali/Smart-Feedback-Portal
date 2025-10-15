@@ -68,7 +68,6 @@ export async function uploadFilesToS3WithRetry(
   maxRetries = UPLOAD_CONFIG.maxRetries,
   onProgress?: (progress: UploadProgress) => void
 ): Promise<UploadResult> {
-  console.log(submissionNotes);
   const startTime = Date.now();
   const failedFiles: Array<{ file: File; error: string }> = [];
   let completedCount = 0;
