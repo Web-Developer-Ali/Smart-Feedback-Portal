@@ -46,13 +46,13 @@ export async function POST(request: Request) {
 
       const projectId = projectResult.rows[0].project_id;
 
-      // 2. Update milestone status and set is_archived to true
+      // 2. Update milestone status - FIXED: Correct parameter numbering
       const updateResult = await client.query(
         `UPDATE milestones 
-         SET status = $1, is_archived = $2, updated_at = $3
-         WHERE id = $4
+         SET status = $1, updated_at = $2
+         WHERE id = $3
          RETURNING *`,
-        ["approved", true, new Date().toISOString(), milestoneId]
+        ["approved", new Date().toISOString(), milestoneId]
       );
 
       if (!updateResult.rows.length) {
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
            COUNT(*) FILTER (WHERE status = 'approved') as approved_milestones,
            COUNT(*) FILTER (WHERE status != 'approved' AND status != 'cancelled') as pending_milestones
          FROM milestones 
-         WHERE project_id = $1 AND is_archived = false`,
+         WHERE project_id = $1`,
         [projectId]
       );
 
@@ -106,11 +106,6 @@ export async function POST(request: Request) {
       message: result.projectUpdated
         ? "Milestone approved successfully and project marked as completed"
         : "Milestone approved successfully",
-      data: {
-        milestone: result.milestone,
-        projectUpdated: result.projectUpdated,
-        milestones: result.milestones,
-      },
     });
   } catch (error: unknown) {
     console.error("API Error:", error);

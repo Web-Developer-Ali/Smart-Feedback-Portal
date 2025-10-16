@@ -240,7 +240,6 @@ function DeliverablesSection({
 }
 
 function SubmissionNotes({ milestone }: { milestone: Milestone }) {
-  console.log(milestone);
   const deliverablesWithNotes =
     milestone.deliverables?.filter((deliverable) =>
       deliverable.submission_notes?.trim()

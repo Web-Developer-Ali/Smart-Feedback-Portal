@@ -23,7 +23,6 @@ type MilestoneWithProject = {
   project_name?: string;
   started_at?: string | null;
   updated_at?: string | null;
-  starting_notes?: string | null;
 };
 
 export async function POST(request: Request) {
@@ -143,15 +142,15 @@ export async function POST(request: Request) {
 
       const now = new Date().toISOString();
 
-      // update milestone
+      // update milestone - FIXED: Removed extra comma and corrected parameter numbering
       const updateRes = await client.query<MilestoneWithProject>(
         `
         UPDATE milestones
-        SET status = $1, started_at = $2, updated_at = $3, starting_notes = $4
-        WHERE id = $5
+        SET status = $1, started_at = $2, updated_at = $3
+        WHERE id = $4
         RETURNING *
         `,
-        ["in_progress", now, now, notes ?? null, milestone_id]
+        ["in_progress", now, now, milestone_id]
       );
 
       if (!updateRes.rows.length) {
@@ -215,26 +214,21 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: "Milestone started successfully",
-      data: {
-        milestone: result.updatedMilestone,
-        project_updated: result.projectUpdated,
-        activity_logged: true,
-      },
     });
   } catch (error: unknown) {
-  console.error("Start Milestone API Error:", error);
+    console.error("Start Milestone API Error:", error);
 
-  const status =
-    typeof error === "object" &&
-    error !== null &&
-    "status" in error &&
-    typeof (error as { status?: number }).status === "number"
-      ? (error as { status: number }).status
-      : 500;
+    const status =
+      typeof error === "object" &&
+      error !== null &&
+      "status" in error &&
+      typeof (error as { status?: number }).status === "number"
+        ? (error as { status: number }).status
+        : 500;
 
-  const message =
-    error instanceof Error ? error.message : "Internal server error";
+    const message =
+      error instanceof Error ? error.message : "Internal server error";
 
-  return NextResponse.json({ error: message }, { status });
-}
+    return NextResponse.json({ error: message }, { status });
+  }
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { RefreshCw, XCircle } from "lucide-react";
+import { RefreshCw, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import axios, { AxiosError } from "axios";
 import { Button } from "@/components/ui/button";
@@ -23,12 +23,14 @@ export default function ClientReviewPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const params = useParams();
   const projectId = params?.projectId as string;
 
   const projectData = useMemo(() => project, [project]);
   const router = useRouter();
+
   const fetchProject = useCallback(async () => {
     if (!projectId) {
       setError("Project ID is required");
@@ -37,12 +39,12 @@ export default function ClientReviewPage() {
     }
 
     try {
-      setLoading(true);
       setError(null);
 
       const { data } = await axios.get(`/api/client/client-review`, {
         params: { projectId },
       });
+
       setProject(data);
     } catch (err) {
       const axiosError = err as AxiosError<{ error?: string }>;
@@ -71,20 +73,24 @@ export default function ClientReviewPage() {
       action: "approve" | "reject",
       revisionNotes?: string
     ) => {
+      setActionLoading(milestoneId);
+
       try {
         if (action === "approve") {
           await axios.post(
             `/api/client/approve_milestone?milestoneId=${milestoneId}`
           );
+          toast.success("Milestone approved successfully");
         } else if (action === "reject") {
           await axios.post(`/api/client/reject_milestone`, {
             projectId,
             milestoneId,
             revisionNotes,
           });
+          toast.success("Milestone rejected successfully");
         }
 
-        toast.success(`Milestone ${action}d successfully`);
+        // Refresh project data after successful action
         await fetchProject();
       } catch (err) {
         const axiosError = err as AxiosError<{ error?: string }>;
@@ -94,6 +100,8 @@ export default function ClientReviewPage() {
           `Failed to ${action} milestone`;
 
         toast.error(errorMessage);
+      } finally {
+        setActionLoading(null);
       }
     },
     [fetchProject, projectId]
@@ -152,6 +160,14 @@ export default function ClientReviewPage() {
           status={projectData.status}
         />
 
+        {/* Global action loader */}
+        {actionLoading && (
+          <div className="fixed top-4 right-4 z-50 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center space-x-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Processing milestone...</span>
+          </div>
+        )}
+
         <div className="space-y-8">
           <div className="space-y-6">
             <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-6">
@@ -165,6 +181,7 @@ export default function ClientReviewPage() {
                 milestone={milestone}
                 onMilestoneAction={handleMilestoneAction}
                 projectId={projectData.id}
+                isLoading={actionLoading === milestone.id}
               />
             ))}
 

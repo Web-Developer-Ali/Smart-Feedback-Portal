@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
 
     // Transaction block
-    const result = await withTransaction(async (client) => {
+    await withTransaction(async (client) => {
       // Fetch milestone
       const milestoneRes = await client.query(
         `
@@ -62,16 +62,19 @@ export async function POST(request: Request) {
         );
       }
 
-      // Revision logic
-      const hasFreeRevisions =
-        milestone.used_revisions < milestone.free_revisions;
-      let revisionCharge = 0;
-      let newMilestonePrice = milestone.milestone_price;
-      let newProjectPrice = milestone.current_project_price;
+      // Revision logic - Check if free revisions limit is reached
+      const freeRevisionsRemaining =
+        milestone.free_revisions - milestone.used_revisions;
+      const hasFreeRevisions = freeRevisionsRemaining > 0;
 
+      let revisionCharge = 0;
+      let newMilestonePrice = parseFloat(milestone.milestone_price);
+      let newProjectPrice = parseFloat(milestone.current_project_price);
+
+      // Apply fixed revision charge from revision_rate ONLY when free revisions limit is reached
       if (!hasFreeRevisions && milestone.revision_rate > 0) {
-        revisionCharge =
-          milestone.milestone_price * (milestone.revision_rate / 100);
+        // Use the fixed revision_rate amount (e.g., $20) from the database
+        revisionCharge = parseFloat(milestone.revision_rate);
         newMilestonePrice += revisionCharge;
         newProjectPrice += revisionCharge;
       }
@@ -95,13 +98,12 @@ export async function POST(request: Request) {
       }
 
       // Update media_attachments - set submission_status to 'rejected' and update submission_notes with revision notes
-      const mediaUpdateRes = await client.query(
+      await client.query(
         `
         UPDATE media_attachments 
         SET submission_status = 'rejected',
             submission_notes = $1
         WHERE milestone_id = $2 AND project_id = $3
-        RETURNING id
         `,
         [revisionNotes, milestoneId, projectId]
       );
@@ -113,20 +115,11 @@ export async function POST(request: Request) {
           [newProjectPrice, now, projectId]
         );
       }
-
-      return {
-        hasFreeRevisions,
-        revisionCharge,
-        newMilestonePrice,
-        newProjectPrice,
-        mediaAttachmentsUpdated: mediaUpdateRes.rows.length,
-      };
     });
 
     return NextResponse.json({
       success: true,
       message: "Milestone rejected successfully",
-      data: result,
     });
   } catch (error: unknown) {
     console.error("Reject Milestone API Error:", error);

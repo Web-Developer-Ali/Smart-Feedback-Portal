@@ -68,7 +68,7 @@ export async function GET(request: Request) {
             '[]'::json
           ) as milestones
         FROM project p
-        LEFT JOIN milestones m ON m.project_id = p.id AND m.is_archived = false
+        LEFT JOIN milestones m ON m.project_id = p.id
         LEFT JOIN LATERAL (
           SELECT 
             r.milestone_id,

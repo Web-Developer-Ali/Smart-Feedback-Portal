@@ -11,7 +11,6 @@ CREATE TABLE milestones (
   description TEXT,
   duration_days INTEGER NOT NULL CHECK (duration_days > 0),
   priority INTEGER DEFAULT 0 CHECK (priority >= 0),
-  starting_notes TEXT,
     -- Pricing
   milestone_price NUMERIC(10,2) NOT NULL CHECK (milestone_price >= 0),
   is_payment_cleared BOOLEAN NOT NULL DEFAULT FALSE,
@@ -22,10 +21,6 @@ CREATE TABLE milestones (
   -- Status
   status TEXT NOT NULL DEFAULT 'not_started'
     CHECK (status IN ('not_started','in_progress','submitted','approved','rejected')),
-
-  -- Soft delete
-  is_archived BOOLEAN DEFAULT FALSE,
-
   -- Timestamps
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   started_at TIMESTAMPTZ,
@@ -51,7 +46,6 @@ CREATE INDEX idx_milestones_project_id ON milestones(project_id);
 -- Common filters
 CREATE INDEX idx_milestones_status ON milestones(status);
 CREATE INDEX idx_milestones_payment_cleared ON milestones(is_payment_cleared);
-CREATE INDEX idx_milestones_archived ON milestones(is_archived);
 
 -- Partial indexes for frequent queries
 CREATE INDEX idx_milestones_uncleared_payments 

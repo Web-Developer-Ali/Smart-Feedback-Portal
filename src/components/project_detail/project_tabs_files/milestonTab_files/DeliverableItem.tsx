@@ -64,22 +64,16 @@ export default function DeliverableItem({
     } catch (error: unknown) {
       const axiosError = error as AxiosError<{ error?: string }>;
       console.error("Download error:", axiosError);
-      toast.error(axiosError.response?.data?.error || "Failed to download file");
+      toast.error(
+        axiosError.response?.data?.error || "Failed to download file"
+      );
     } finally {
       setDownloading(null);
     }
   };
 
   const openDeleteDialog = () => {
-    const validFiles = generateFileList().filter(
-      (file) => file.isDeletable
-    );
-
-    if (validFiles.length === 0) {
-      toast.info("No files available to delete");
-      return;
-    }
-
+    const validFiles = generateFileList().filter((file) => file.isDeletable);
     setDeleteDialog({
       open: true,
       files: validFiles,
@@ -97,15 +91,20 @@ export default function DeliverableItem({
   const handleDeleteAllFiles = async () => {
     try {
       setDeleting(true);
-      const response = await axios.post("/api/file_handling/delete_milestone_files", {
-        milestoneId,
-        deliverableId: deliverable.id,
-        deleteAll: true,
-        deliverableName: deliverable.name,
-      });
+      const response = await axios.post(
+        "/api/file_handling/delete_milestone_files",
+        {
+          milestoneId,
+          deliverableId: deliverable.id,
+          deleteAll: true,
+          deliverableName: deliverable.name,
+        }
+      );
 
       if (response.data.success) {
-        toast.success(`All files from “${deliverable.name}” deleted successfully`);
+        toast.success(
+          `All files from “${deliverable.name}” deleted successfully`
+        );
         onRefreshProject?.();
       } else {
         throw new Error(response.data.error || "Failed to delete files");
@@ -125,7 +124,8 @@ export default function DeliverableItem({
   };
 
   const generateFileList = () => {
-    if (!deliverable.public_ids || deliverable.public_ids.length === 0) return [];
+    if (!deliverable.public_ids || deliverable.public_ids.length === 0)
+      return [];
 
     return deliverable.public_ids.map((publicId, index) => {
       const fileName =
@@ -157,7 +157,10 @@ export default function DeliverableItem({
                 {deliverable.name}
               </span>
               <div className="flex items-center gap-2 text-xs text-gray-500">
-                <span>Uploaded {new Date(deliverable.uploaded_at).toLocaleDateString()}</span>
+                <span>
+                  Uploaded{" "}
+                  {new Date(deliverable.uploaded_at).toLocaleDateString()}
+                </span>
                 {deliverable.file_count > 1 && (
                   <Badge variant="outline" className="text-xs">
                     {deliverable.file_count} files
@@ -166,23 +169,21 @@ export default function DeliverableItem({
               </div>
             </div>
           </div>
-          
-          {hasDeletableFiles && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="hover:bg-red-100 flex-shrink-0 h-8 w-8 p-0 ml-2"
-              onClick={openDeleteDialog}
-              disabled={deleting}
-              title={`Delete all files from ${deliverable.name}`}
-            >
-              {deleting ? (
-                <span className="text-red-600 text-xs animate-pulse">...</span>
-              ) : (
-                <Trash2 className="h-4 w-4 text-red-600" />
-              )}
-            </Button>
-          )}
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="hover:bg-red-100 flex-shrink-0 h-8 w-8 p-0 ml-2"
+            onClick={openDeleteDialog}
+            disabled={deleting}
+            title={`Delete all files from ${deliverable.name}`}
+          >
+            {deleting ? (
+              <span className="text-red-600 text-xs animate-pulse">...</span>
+            ) : (
+              <Trash2 className="h-4 w-4 text-red-600" />
+            )}
+          </Button>
         </div>
 
         <div className="space-y-2">
@@ -191,7 +192,10 @@ export default function DeliverableItem({
               { publicId, fileName }: { publicId: string; fileName: string },
               index: number
             ) => (
-              <div key={index} className="flex items-center justify-between bg-white p-2 rounded-lg border">
+              <div
+                key={index}
+                className="flex items-center justify-between bg-white p-2 rounded-lg border"
+              >
                 <span className="text-xs text-gray-600 truncate flex-1 mr-2">
                   {fileName}
                 </span>
@@ -205,7 +209,9 @@ export default function DeliverableItem({
                     title="Download file"
                   >
                     {downloading === publicId ? (
-                      <span className="text-blue-600 text-xs animate-pulse">...</span>
+                      <span className="text-blue-600 text-xs animate-pulse">
+                        ...
+                      </span>
                     ) : (
                       <Download className="h-3 w-3 text-blue-600" />
                     )}
@@ -230,32 +236,33 @@ export default function DeliverableItem({
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          
+
           <div className="mt-2">
-              <p className="text-base text-gray-700 mb-3">
-                     {/* ✅ Escape quotes using &quot; */}
-                      Are you sure you want to delete all files from <strong>&quot;{deliverable.name}&quot;</strong>?
-              </p>
-            
+            <p className="text-base text-gray-700 mb-3">
+              {/* ✅ Escape quotes using &quot; */}
+              Are you sure you want to delete all files from{" "}
+              <strong>&quot;{deliverable.name}&quot;</strong>?
+            </p>
+
             <div className="text-sm text-amber-600 mb-3">
               This will permanently delete {deleteDialog.files.length} file(s):
             </div>
-            
+
             <ul className="text-sm text-gray-700 mt-2 mb-4 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50">
               {deleteDialog.files.map((file, index) => (
-                <li key={index} className="truncate py-1">• {file.fileName}</li>
+                <li key={index} className="truncate py-1">
+                  • {file.fileName}
+                </li>
               ))}
             </ul>
-            
+
             <div className="text-sm text-red-600 font-medium">
               This action cannot be undone!
             </div>
           </div>
-          
+
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>
-              Cancel
-            </AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteAllFiles}
               disabled={deleting}

@@ -30,6 +30,7 @@ import {
   User,
   FileText,
   ExternalLink,
+  Loader2,
 } from "lucide-react";
 import { Milestone } from "@/types/client-review";
 import axios, { AxiosError } from "axios";
@@ -44,6 +45,7 @@ interface MilestoneCardProps {
     revisionNotes?: string
   ) => Promise<void>;
   projectId: string;
+  isLoading?: boolean;
 }
 
 const getStatusBadge = (status: Milestone["status"]) => {
@@ -92,9 +94,11 @@ export const MilestoneCard = memo(function MilestoneCard({
   index,
   onMilestoneAction,
   projectId,
+  isLoading = false,
 }: MilestoneCardProps) {
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [revisionNotes, setRevisionNotes] = useState("");
+  const [isDownloading, setIsDownloading] = useState<string | null>(null);
 
   const handleApprove = useCallback(() => {
     onMilestoneAction(milestone.id, "approve");
@@ -113,6 +117,7 @@ export const MilestoneCard = memo(function MilestoneCard({
 
   const handleDownload = async (publicId: string, fileName: string) => {
     try {
+      setIsDownloading(fileName);
       const response = await axios.post("/api/file_handling/get_presignUrl", {
         filename: fileName,
         type: "application/octet-stream",
@@ -130,15 +135,28 @@ export const MilestoneCard = memo(function MilestoneCard({
       toast.error(
         axiosError.response?.data?.error || "Failed to download file"
       );
+    } finally {
+      setIsDownloading(null);
     }
   };
 
   // check revision policy
   const hasFreeRevisionsLeft =
     milestone.usedRevisions < milestone.freeRevisions;
+
   return (
     <>
-      <Card className="bg-white border border-gray-200 shadow-lg hover:shadow-xl transition-shadow">
+      <Card className="bg-white border border-gray-200 shadow-lg hover:shadow-xl transition-shadow relative">
+        {/* Loading overlay */}
+        {isLoading && (
+          <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg">
+            <div className="text-center">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto text-blue-600 mb-2" />
+              <p className="text-sm text-gray-600">Processing milestone...</p>
+            </div>
+          </div>
+        )}
+
         <CardHeader className="pb-4">
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center space-x-3 flex-1">
@@ -234,6 +252,9 @@ export const MilestoneCard = memo(function MilestoneCard({
                       const isClickable =
                         deliverable.url &&
                         !deliverable.url.startsWith("#file-not-available");
+                      const isFileDownloading =
+                        isDownloading === deliverable.name;
+
                       return (
                         <li
                           key={index}
@@ -248,11 +269,22 @@ export const MilestoneCard = memo(function MilestoneCard({
                                   deliverable.name
                                 )
                               }
-                              className="group flex items-center space-x-1 text-blue-600 bg-white hover:bg-blue-100 hover:text-blue-800 underline cursor-pointer px-2 py-1 rounded transition-colors"
+                              disabled={isFileDownloading}
+                              className="group flex items-center space-x-1 text-blue-600 bg-white hover:bg-blue-100 hover:text-blue-800 underline cursor-pointer px-2 py-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              <FileText className="h-3 w-3" />
-                              <span>{deliverable.name}</span>
-                              <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              {isFileDownloading ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <FileText className="h-3 w-3" />
+                              )}
+                              <span>
+                                {isFileDownloading
+                                  ? "Downloading..."
+                                  : deliverable.name}
+                              </span>
+                              {!isFileDownloading && (
+                                <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              )}
                             </Button>
                           ) : (
                             <span className="text-gray-700 flex items-center space-x-1">
@@ -289,17 +321,27 @@ export const MilestoneCard = memo(function MilestoneCard({
               <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 pt-4 border-t border-gray-200">
                 <Button
                   onClick={handleApprove}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  disabled={isLoading}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Approve
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                  )}
+                  {isLoading ? "Processing..." : "Approve"}
                 </Button>
                 <Button
                   onClick={() => setIsRejectDialogOpen(true)}
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                  disabled={isLoading}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Request Changes
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <XCircle className="h-4 w-4 mr-2" />
+                  )}
+                  {isLoading ? "Processing..." : "Request Changes"}
                 </Button>
               </div>
             )}
@@ -337,22 +379,31 @@ export const MilestoneCard = memo(function MilestoneCard({
             value={revisionNotes}
             onChange={(e) => setRevisionNotes(e.target.value)}
             className="min-h-[100px]"
+            disabled={isLoading}
           />
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setIsRejectDialogOpen(false)}
+              disabled={isLoading}
             >
               Cancel
             </Button>
             <Button
               onClick={handleRejectSubmit}
               className="bg-red-600 hover:bg-red-700 text-white"
-              disabled={!revisionNotes.trim()}
+              disabled={!revisionNotes.trim() || isLoading}
             >
-              {hasFreeRevisionsLeft
-                ? "Submit Rejection"
-                : `Reject (Cost $${milestone.revisionRate})`}
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : hasFreeRevisionsLeft ? (
+                "Submit Rejection"
+              ) : (
+                `Reject (Cost $${milestone.revisionRate})`
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
