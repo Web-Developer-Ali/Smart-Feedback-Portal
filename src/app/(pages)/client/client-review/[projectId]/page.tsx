@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { RefreshCw, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import axios, { AxiosError } from "axios";
+import axios, { type AxiosError } from "axios";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,11 +17,12 @@ import { PageHeader } from "@/components/client/client-review/page-header";
 import { ProjectOverview } from "@/components/client/client-review/project-overview";
 import { MilestoneCard } from "@/components/client/client-review/milestone-card";
 import { HelpSection } from "@/components/client/client-review/help-section";
-import { Project } from "@/types/client-review";
+import type { Project } from "@/types/client-review";
 
 export default function ClientReviewPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false); // New state for refresh loading
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -31,34 +32,41 @@ export default function ClientReviewPage() {
   const projectData = useMemo(() => project, [project]);
   const router = useRouter();
 
-  const fetchProject = useCallback(async () => {
-    if (!projectId) {
-      setError("Project ID is required");
-      setLoading(false);
-      return;
-    }
+  const fetchProject = useCallback(
+    async (isRefresh = false) => {
+      if (!projectId) {
+        setError("Project ID is required");
+        setLoading(false);
+        return;
+      }
 
-    try {
-      setError(null);
+      try {
+        if (isRefresh) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+        setError(null);
 
-      const { data } = await axios.get(`/api/client/client-review`, {
-        params: { projectId },
-      });
-
-      setProject(data);
-    } catch (err) {
-      const axiosError = err as AxiosError<{ error?: string }>;
-      const errorMessage =
-        axiosError.response?.data?.error ||
-        axiosError.message ||
-        "Failed to fetch project";
-
-      setError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
+        const { data } = await axios.get(`/api/client/client-review`, {
+          params: { projectId },
+        });
+        setProject(data);
+      } catch (err) {
+        const axiosError = err as AxiosError<{ error?: string }>;
+        const errorMessage =
+          axiosError.response?.data?.error ||
+          axiosError.message ||
+          "Failed to fetch project";
+        setError(errorMessage);
+        toast.error(errorMessage);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [projectId]
+  );
 
   const allMilestonesApproved = useMemo(() => {
     if (!project?.milestones) return false;
@@ -76,29 +84,37 @@ export default function ClientReviewPage() {
       setActionLoading(milestoneId);
 
       try {
-        if (action === "approve") {
-          await axios.post(
-            `/api/client/approve_milestone?milestoneId=${milestoneId}`
-          );
-          toast.success("Milestone approved successfully");
-        } else if (action === "reject") {
-          await axios.post(`/api/client/reject_milestone`, {
-            projectId,
-            milestoneId,
-            revisionNotes,
-          });
-          toast.success("Milestone rejected successfully");
-        }
+        const milestoneUpdateApicall =
+          action === "approve"
+            ? await axios.post(
+                `/api/client/approve_milestone?milestoneId=${milestoneId}`
+              )
+            : await axios.post(`/api/client/reject_milestone`, {
+                projectId,
+                milestoneId,
+                revisionNotes,
+              });
 
-        // Refresh project data after successful action
-        await fetchProject();
+        if (milestoneUpdateApicall.data.success === true) {
+          // Show success message
+          toast.success(
+            action === "approve"
+              ? "Milestone approved successfully"
+              : "Milestone rejected successfully"
+          );
+          // Fetch fresh data with refresh loading state
+          await fetchProject(true);
+        } else {
+          throw new Error(
+            milestoneUpdateApicall.data.error || `${action} failed`
+          );
+        }
       } catch (err) {
         const axiosError = err as AxiosError<{ error?: string }>;
         const errorMessage =
           axiosError.response?.data?.error ||
           axiosError.message ||
           `Failed to ${action} milestone`;
-
         toast.error(errorMessage);
       } finally {
         setActionLoading(null);
@@ -108,9 +124,12 @@ export default function ClientReviewPage() {
   );
 
   useEffect(() => {
-    fetchProject();
-  }, [fetchProject]);
+    if (projectId) {
+      fetchProject();
+    }
+  }, [projectId, fetchProject]);
 
+  // Show full page loader only for initial load
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 flex items-center justify-center">
@@ -134,7 +153,7 @@ export default function ClientReviewPage() {
             {error || "Failed to load project data"}
           </p>
           <button
-            onClick={fetchProject}
+            onClick={() => fetchProject()}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             Try Again
@@ -143,7 +162,6 @@ export default function ClientReviewPage() {
       </div>
     );
   }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
       <PageHeader
@@ -152,6 +170,16 @@ export default function ClientReviewPage() {
       />
 
       <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
+        {/* Refresh loading overlay */}
+        {refreshing && (
+          <div className="fixed inset-0 bg-white/50 backdrop-blur-sm z-40 flex items-center justify-center">
+            <div className="bg-white border border-gray-200 rounded-lg shadow-lg px-6 py-4 flex items-center space-x-3">
+              <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+              <span className="text-gray-700">Updating project data...</span>
+            </div>
+          </div>
+        )}
+
         <ProjectOverview
           title={projectData.title}
           totalAmount={projectData.totalAmount}
@@ -181,7 +209,7 @@ export default function ClientReviewPage() {
                 milestone={milestone}
                 onMilestoneAction={handleMilestoneAction}
                 projectId={projectData.id}
-                isLoading={actionLoading === milestone.id}
+                isLoading={actionLoading === milestone.id || refreshing}
               />
             ))}
 

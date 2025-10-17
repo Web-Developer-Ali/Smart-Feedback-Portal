@@ -179,7 +179,7 @@ export default function FeedbackForm() {
         ...(milestoneId && { milestoneId }),
       };
 
-      const response = await axios.post("/api/client/submit_review", payload, {
+      await axios.post("/api/client/submit_review", payload, {
         headers: { "Content-Type": "application/json" },
         timeout: 10000,
       });

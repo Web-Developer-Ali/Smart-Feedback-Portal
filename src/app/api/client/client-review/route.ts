@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../auth/[...nextauth]/options";
 import { withTransaction } from "@/lib/db";
 import { z } from "zod";
 import {
@@ -77,14 +75,14 @@ export async function GET(request: Request) {
 
       // Check for project review (milestone_id IS NULL)
       const hasProjectReview = reviews.some(
-        (review: any) => review.milestone_id === null
+        (review) => review.milestone_id === null
       );
 
       // Create a set of milestone IDs that have reviews for quick lookup
       const milestoneIdsWithReviews = new Set(
         reviews
-          .filter((review: any) => review.milestone_id !== null)
-          .map((review: any) => review.milestone_id)
+          .filter((review) => review.milestone_id !== null)
+          .map((review) => review.milestone_id)
       );
 
       // Group media by milestone
@@ -159,7 +157,6 @@ export async function GET(request: Request) {
             freeRevisions: m.free_revisions || 0,
             usedRevisions: m.used_revisions || 0,
             revisionRate: m.revision_rate || 0,
-            // Milestone review flag only (no detailed review object)
             hasReview: milestoneIdsWithReviews.has(m.id),
           };
         }),
@@ -172,9 +169,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
+    // ✅ FIX: Remove caching headers for fresh data every time
     return NextResponse.json(projectData, {
       headers: {
-        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30",
+        "Cache-Control":
+          "no-store, no-cache, must-revalidate, proxy-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
+        "Surrogate-Control": "no-store",
       },
     });
   } catch (error: unknown) {

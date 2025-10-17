@@ -1,45 +1,40 @@
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { useRouter } from "next/navigation";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { HelpCircle, MessageSquare } from "lucide-react";
 
 interface HelpSectionProps {
-  projectId: string
+  projectId: string;
 }
 
-
-
-export function HelpSection(projectId: HelpSectionProps) {
-  const router = useRouter();
+export function HelpSection({ projectId }: HelpSectionProps) {
   return (
-    <Card className="bg-white border border-gray-200 shadow-lg w-full max-w-full">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-lg text-gray-900">Need Help?</CardTitle>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center space-x-2">
+          <HelpCircle className="h-5 w-5" />
+          <span>Need Help?</span>
+        </CardTitle>
+        <CardDescription>Have questions about this project?</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4 text-sm md:text-base">
-          <p className="text-gray-600 leading-relaxed">
-            Having issues with a milestone? Contact support or communicate directly with your freelancer.
-          </p>
-          <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
-            <Button
-            onClick={() => router.push(`/client/client-communication?projectId=${projectId}?usecase=support`)}
-              variant="outline"
-              size="sm"
-              className="flex-1 min-w-0 border-gray-300 text-gray-700 hover:bg-gray-50 bg-transparent transition-colors duration-200"
-            >
-              Contact Support
-            </Button>
-            <Button
-             onClick={() => router.push(`/client/client-communication?projectId=${projectId}?usecase=contact-freelancer`)}
-              variant="outline"
-              size="sm"
-              className="flex-1 min-w-0 border-gray-300 text-gray-700 hover:bg-gray-50 bg-transparent transition-colors duration-200"
-            >
-              Message Freelancer
-            </Button>
-          </div>
-        </div>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-gray-600">
+          If you have any questions or concerns about the milestones,
+          deliverables, or project progress, please reach out to the freelancer
+          or contact support.
+        </p>
+        <Button variant="outline" className="w-full bg-transparent" asChild>
+          <a href={`/client/messages/${projectId}`}>
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Contact Freelancer
+          </a>
+        </Button>
       </CardContent>
     </Card>
-  )
+  );
 }

@@ -142,7 +142,6 @@ export default function DeliverableItem({
   };
 
   const fileList = generateFileList();
-  const hasDeletableFiles = fileList.some((file) => file.isDeletable);
 
   return (
     <>
