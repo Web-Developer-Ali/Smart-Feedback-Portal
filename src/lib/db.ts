@@ -1,6 +1,4 @@
 import { Pool, PoolClient } from "pg";
-import fs from "fs";
-import path from "path";
 
 declare global {
   var _pgPool: Pool | undefined;
