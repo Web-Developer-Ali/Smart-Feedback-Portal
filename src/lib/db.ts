@@ -1,9 +1,9 @@
-import { Pool } from "pg";
+import { Pool, PoolClient } from "pg";
 import fs from "fs";
 import path from "path";
 
 declare global {
-  var _pgPool: any | undefined;
+  var _pgPool: Pool | undefined;
 }
 
 // Read SSL certificate (stored next to this file)
@@ -32,11 +32,11 @@ if (process.env.NODE_ENV !== "production") {
   global._pgPool = pool;
 }
 
-export async function query(text: string, params?: any[]) {
+export async function query(text: string, params?: unknown[]) {
   return pool.query(text, params);
 }
 
-export async function withTransaction(callback: (client: any) => Promise<any>) {
+export async function withTransaction(callback: (client: PoolClient) => Promise<unknown>) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
