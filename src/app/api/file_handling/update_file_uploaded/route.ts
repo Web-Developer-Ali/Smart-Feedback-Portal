@@ -4,6 +4,20 @@ import { authOptions } from "../../auth/[...nextauth]/options";
 import { withTransaction } from "@/lib/db";
 import { recordFilesSchema } from "@/lib/validations/update_file_uploaded";
 
+// Define the return type for the transaction
+interface TransactionResult {
+  mediaAttachment: unknown; // You can replace 'any' with a more specific type if available
+  activityLogged: boolean;
+  isUpdate: boolean;
+  fileCount: number;
+  filesProcessed: number;
+  totalFiles: number;
+  milestoneStatusUpdated: boolean;
+  previousMilestoneStatus: string;
+  newMilestoneStatus: string;
+  hasFiles: boolean;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -71,7 +85,7 @@ export async function POST(req: Request) {
 
     const userId = session.user.id;
 
-    // Use transaction wrapper
+    // Use transaction wrapper with proper typing
     const result = await withTransaction(async (client) => {
       // Verify milestone exists and belongs to a project that the user owns
       const milestoneResult = await client.query(
@@ -323,7 +337,8 @@ export async function POST(req: Request) {
         ]
       );
 
-      return {
+      // Return typed result
+      const transactionResult: TransactionResult = {
         mediaAttachment,
         activityLogged: activityResult.rows.length > 0,
         isUpdate,
@@ -337,18 +352,28 @@ export async function POST(req: Request) {
           : milestone.status,
         hasFiles: fileCount > 0,
       };
+
+      return transactionResult;
     });
+
+    // Type guard to ensure result has the expected properties
+    if (typeof result !== 'object' || result === null) {
+      throw new Error("Unexpected result from transaction");
+    }
+
+    // Now TypeScript knows the shape of result, so we can safely access its properties
+    const typedResult = result as TransactionResult;
 
     // Generate appropriate success message
     let successMessage = "";
-    if (result.milestoneStatusUpdated && result.hasFiles) {
-      successMessage = `Milestone submitted successfully with ${result.filesProcessed} files`;
-    } else if (result.milestoneStatusUpdated && !result.hasFiles) {
+    if (typedResult.milestoneStatusUpdated && typedResult.hasFiles) {
+      successMessage = `Milestone submitted successfully with ${typedResult.filesProcessed} files`;
+    } else if (typedResult.milestoneStatusUpdated && !typedResult.hasFiles) {
       successMessage = `Milestone submitted successfully without files`;
-    } else if (result.hasFiles && result.isUpdate) {
-      successMessage = `${result.filesProcessed} files added successfully (Total: ${result.totalFiles} files)`;
-    } else if (result.hasFiles) {
-      successMessage = `${result.filesProcessed} files uploaded successfully`;
+    } else if (typedResult.hasFiles && typedResult.isUpdate) {
+      successMessage = `${typedResult.filesProcessed} files added successfully (Total: ${typedResult.totalFiles} files)`;
+    } else if (typedResult.hasFiles) {
+      successMessage = `${typedResult.filesProcessed} files uploaded successfully`;
     } else {
       successMessage = `Milestone updated successfully`;
     }

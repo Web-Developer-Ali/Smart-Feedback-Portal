@@ -103,8 +103,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: result.projectUpdated
-        ? "Milestone approved successfully and project marked as completed"
+      message: (typeof result === "object" && result !== null && "projectUpdated" in result && typeof (result).projectUpdated === "boolean")
+        ? ((result).projectUpdated
+            ? "Milestone approved successfully and project marked as completed"
+            : "Milestone approved successfully")
         : "Milestone approved successfully",
     });
   } catch (error: unknown) {

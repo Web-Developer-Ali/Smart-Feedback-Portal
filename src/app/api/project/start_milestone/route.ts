@@ -205,7 +205,7 @@ export async function POST(request: Request) {
 
     // revalidate cache (non-blocking)
     try {
-      revalidatePath(`/dashboard/project/${result.projectId}`);
+      revalidatePath(`/dashboard/project/${(result as { projectId: string }).projectId}`);
       revalidatePath("/dashboard/project");
     } catch (cacheErr) {
       console.error("Cache revalidation failed:", cacheErr);
