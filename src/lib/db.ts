@@ -6,10 +6,10 @@ declare global {
   var _pgPool: Pool | undefined;
 }
 
-// Read SSL certificate (stored next to this file)
-const caCert = fs.readFileSync(
-  path.join(process.cwd(), "src/lib/global-bundle.pem")
-).toString();
+// Decode CA from environment
+const caCert = process.env.RDS_CA_BUNDLE
+  ? Buffer.from(process.env.RDS_CA_BUNDLE, "base64").toString("utf8")
+  : undefined;
 
 const pool =
   global._pgPool ||
