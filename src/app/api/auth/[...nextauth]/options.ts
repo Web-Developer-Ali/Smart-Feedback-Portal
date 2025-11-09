@@ -5,14 +5,14 @@ import { query } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
-// Environment variables validation
+// --- Helper for safe env access ---
 const getEnvVar = (key: string): string => {
   const value = process.env[key];
   if (!value) throw new Error(`Missing environment variable: ${key}`);
   return value;
 };
 
-// Zod schema for login validation
+// --- Zod validation schema for credentials ---
 const credentialsSchema = z.object({
   email: z.string().email("Invalid email format").min(1, "Email is required"),
   password: z.string().min(6, "Password must be at least 6 characters"),
@@ -20,12 +20,14 @@ const credentialsSchema = z.object({
 
 export const authOptions: NextAuthOptions = {
   providers: [
+    // --- Google OAuth Provider ---
     GoogleProvider({
       clientId: getEnvVar("GOOGLE_CLIENT_ID"),
       clientSecret: getEnvVar("GOOGLE_CLIENT_SECRET"),
-      allowDangerousEmailAccountLinking: true,
+      allowDangerousEmailAccountLinking: false,
     }),
 
+    // --- Credentials Provider ---
     CredentialsProvider({
       id: "credentials",
       name: "Email and Password",
@@ -39,15 +41,14 @@ export const authOptions: NextAuthOptions = {
 
           const { rows } = await query(
             `SELECT id, email, full_name, email_verified, password_hash, avatar_url
-             FROM users 
-             WHERE email = $1`,
+             FROM users
+             WHERE email = $1
+             LIMIT 1`,
             [email.toLowerCase().trim()]
           );
 
           const user = rows[0];
-          if (!user) {
-            throw new Error("No account found with this email");
-          }
+          if (!user) throw new Error("No account found with this email");
 
           if (!user.password_hash) {
             throw new Error(
@@ -55,13 +56,8 @@ export const authOptions: NextAuthOptions = {
             );
           }
 
-          const isValid = await bcrypt.compare(
-            password,
-            String(user.password_hash)
-          );
-          if (!isValid) {
-            throw new Error("Invalid password");
-          }
+          const isValid = await bcrypt.compare(password, String(user.password_hash));
+          if (!isValid) throw new Error("Invalid password");
 
           return {
             id: String(user.id),
@@ -71,12 +67,8 @@ export const authOptions: NextAuthOptions = {
             avatar: String(user.avatar_url || ""),
           } as User;
         } catch (err) {
-          if (err instanceof z.ZodError) {
-            throw new Error(err.errors[0].message);
-          }
-          if (err instanceof Error) {
-            throw new Error(err.message);
-          }
+          if (err instanceof z.ZodError) throw new Error(err.errors[0].message);
+          if (err instanceof Error) throw new Error(err.message);
           throw new Error("Something went wrong, please try again");
         }
       },
@@ -90,38 +82,34 @@ export const authOptions: NextAuthOptions = {
   },
 
   callbacks: {
+    // --- Handle JWT lifecycle ---
     async jwt({ token, user, account, profile, trigger }) {
-      // ✅ FIX: Handle session updates
       if (trigger === "update") {
-        // Refresh user data from database
         try {
           const { rows } = await query(
-            `SELECT id, email_verified, avatar_url 
-             FROM users 
-             WHERE id = $1`,
+            `SELECT id, email_verified, avatar_url FROM users WHERE id = $1 LIMIT 1`,
             [token.id]
           );
-
           const dbUser = rows[0];
           if (dbUser) {
             token.isVerified = Boolean(dbUser.email_verified);
             token.avatar = String(dbUser.avatar_url || "");
           }
         } catch (error) {
-          console.error("Token update error:", error);
+          if (process.env.NODE_ENV === "development") {
+            console.error("Token refresh error:", error);
+          }
         }
       }
 
-      // Handle Google OAuth
+      // --- Google OAuth flow ---
       if (account?.provider === "google" && profile) {
         try {
           const email = profile.email?.toLowerCase().trim();
           if (!email) return token;
 
           const { rows } = await query(
-            `SELECT id, email_verified, avatar_url 
-             FROM users 
-             WHERE email = $1`,
+            `SELECT id, email_verified, avatar_url FROM users WHERE email = $1 LIMIT 1`,
             [email]
           );
 
@@ -129,11 +117,9 @@ export const authOptions: NextAuthOptions = {
 
           if (!dbUser) {
             const { rows: newUser } = await query(
-              `INSERT INTO users (
-                email, full_name, email_verified, avatar_url, 
-                auth_provider, created_at, updated_at
-              ) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-              RETURNING id, email_verified, avatar_url`,
+              `INSERT INTO users (email, full_name, email_verified, avatar_url, auth_provider, created_at, updated_at)
+               VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+               RETURNING id, email_verified, avatar_url`,
               [email, profile.name, true, profile.picture || null, "google"]
             );
             dbUser = newUser[0];
@@ -145,26 +131,29 @@ export const authOptions: NextAuthOptions = {
           token.id = String(dbUser.id);
           token.isVerified = Boolean(dbUser.email_verified);
           token.avatar = String(dbUser.avatar_url || "");
-          token.provider = "google"; // ✅ ADDED: Set provider in token
+          token.provider = "google";
           return token;
         } catch (error) {
-          console.error("Google OAuth error:", error);
+          if (process.env.NODE_ENV === "development") {
+            console.error("Google OAuth error:", error);
+          }
           return token;
         }
       }
 
-      // Credentials login
+      // --- Credentials flow ---
       if (user) {
         token.id = String(user.id);
         token.isVerified = Boolean(user.isVerified);
         token.avatar = String(user.avatar || "");
         token.isNewUser = false;
-        token.provider = "credentials"; // ✅ ADDED: Set provider in token
+        token.provider = "credentials";
       }
 
       return token;
     },
 
+    // --- Session object ---
     async session({ session, token }) {
       if (token) {
         session.user.id = String(token.id);
@@ -177,28 +166,21 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
 
+    // --- Sign-in flow rules ---
     async signIn({ user, account }) {
-      if (account?.provider === "credentials") {
-        if (!user.isVerified) {
-          throw new Error("Please verify your email before signing in");
-        }
-        return true;
+      if (account?.provider === "credentials" && !user.isVerified) {
+        throw new Error("Please verify your email before signing in");
       }
-
       if (account?.provider === "google") {
         return !!user.email;
       }
-
       return true;
     },
 
+    // --- Redirect after login ---
     async redirect({ url, baseUrl }) {
-      // ✅ FIX: Improved redirect logic
-      if (url.startsWith(baseUrl)) {
-        return `${baseUrl}/dashboard`;
-      } else if (url.startsWith("/")) {
-        return `${baseUrl}${url}`;
-      }
+      if (url.startsWith(baseUrl)) return `${baseUrl}/dashboard`;
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
       return baseUrl;
     },
   },
@@ -209,40 +191,29 @@ export const authOptions: NextAuthOptions = {
   },
 
   secret: getEnvVar("NEXTAUTH_SECRET"),
+
   useSecureCookies: process.env.NODE_ENV === "production",
-  debug: process.env.NODE_ENV === "development",
 
-  // ✅ ADDED: Critical for production
-  //  cookies: {
-  //   sessionToken: {
-  //     name: `next-auth.session-token`,
-  //     options: {
-  //       httpOnly: true,
-  //       sameSite: "lax",
-  //       path: "/",
-  //       secure: process.env.NODE_ENV === "production",
-  //       // Add domain for production if using custom domain
-  //       ...(process.env.NODE_ENV === "production" && process.env.NEXTAUTH_URL?.includes('yourdomain.com')
-  //         ? { domain: '.yourdomain.com' }
-  //         : {}
-  //       ),
-  //     },
-  //   },
-  // },
-
-  // cookies for test production
   cookies: {
     sessionToken: {
-      name: `next-auth.session-token`,
+      name:
+        process.env.NODE_ENV === "production"
+          ? "__Secure-next-auth.session-token"
+          : "next-auth.session-token",
       options: {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
         secure: process.env.NODE_ENV === "production",
-        // Remove domain for local development
+        ...(process.env.NODE_ENV === "production" &&
+        process.env.NEXTAUTH_URL?.includes("workspan.io")
+          ? { domain: "workspan.io" }
+          : {}),
       },
     },
   },
+
+  debug: process.env.NODE_ENV === "development",
 };
 
 export default NextAuth(authOptions);

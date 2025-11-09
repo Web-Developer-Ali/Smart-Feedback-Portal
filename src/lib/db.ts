@@ -1,9 +1,15 @@
-import { Pool, PoolClient, QueryResult, QueryResultRow } from "pg";
+import { Pool } from "pg";
+import fs from "fs";
+import path from "path";
 
 declare global {
-  // Prevent re-creating the pool across hot reloads in dev
-  var _pgPool: Pool | undefined;
+  var _pgPool: any | undefined;
 }
+
+// Read SSL certificate (stored next to this file)
+const caCert = fs.readFileSync(
+  path.join(process.cwd(), "src/lib/global-bundle.pem")
+).toString();
 
 const pool =
   global._pgPool ||
@@ -13,29 +19,24 @@ const pool =
     database: process.env.PGDATABASE,
     user: process.env.PGUSER,
     password: process.env.PGPASSWORD,
-    ssl: { rejectUnauthorized: false },
-    max: 5, // 👈 smaller pool for serverless
-    idleTimeoutMillis: 10000, // lower idle timeout
-    connectionTimeoutMillis: 10000, // 10s connection timeout
+    ssl: {
+      ca: caCert,
+      rejectUnauthorized: true,
+    },
+    max: 5,
+    idleTimeoutMillis: 10000,
+    connectionTimeoutMillis: 10000,
   });
 
-if (process.env.NODE_ENV !== "production") global._pgPool = pool;
-
-export async function query<T extends QueryResultRow = Record<string, unknown>>(
-  text: string,
-  params?: unknown[]
-): Promise<QueryResult<T>> {
-  const client = await pool.connect();
-  try {
-    return await client.query<T>(text, params);
-  } finally {
-    client.release();
-  }
+if (process.env.NODE_ENV !== "production") {
+  global._pgPool = pool;
 }
 
-export async function withTransaction<T>(
-  callback: (client: PoolClient) => Promise<T>
-): Promise<T> {
+export async function query(text: string, params?: any[]) {
+  return pool.query(text, params);
+}
+
+export async function withTransaction(callback: (client: any) => Promise<any>) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
