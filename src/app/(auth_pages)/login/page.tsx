@@ -35,7 +35,6 @@ export default function LoginPage() {
       email,
       password,
     })
-console.log(res)
     if (res?.ok) {
       toast.success("Login successful!")
       router.replace("/dashboard")
@@ -48,7 +47,7 @@ console.log(res)
 
   const handleGoogleLogin = async () => {
     setIsGoogleLoading(true)
-    await signIn("google", { callbackUrl: "/dashboard" })
+    signIn("google", { callbackUrl: "/dashboard" });
     setIsGoogleLoading(false)
   }
 

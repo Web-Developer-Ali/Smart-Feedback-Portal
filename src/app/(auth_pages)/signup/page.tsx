@@ -18,6 +18,7 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Head from "next/head";
+import { signIn } from "next-auth/react";
 
 export default function SignupPage({
   searchParams,
@@ -92,12 +93,15 @@ export default function SignupPage({
   const handleGoogleSignup = async () => {
     setIsGoogleLoading(true);
     try {
-      
+      // Trigger NextAuth Google sign-in
+      signIn("google", { callbackUrl: "/dashboard" });
     } catch (error) {
       console.error("Google signup error:", error);
+      toast.error("Google sign-in failed.");
       setIsGoogleLoading(false);
     }
   };
+  
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));

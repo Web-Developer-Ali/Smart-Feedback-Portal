@@ -241,7 +241,7 @@ export default function ClientReviewPage() {
           </div>
 
           <div className="max-w-md">
-            <HelpSection projectId={projectData.id} />
+            <HelpSection />
           </div>
         </div>
       </div>

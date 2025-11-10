@@ -169,7 +169,6 @@ export async function uploadFilesToS3WithRetry(
         `Insufficient time remaining (${timeRemaining}s) to upload file. Token expiring soon.`
       );
     }
-
     try {
       // Use fetch instead of axios to avoid unsafe header issues and better CORS handling
       const response = await fetch(uploadUrl, {

@@ -5,9 +5,9 @@ declare global {
 }
 
 // Decode CA from environment
-const caCert = process.env.RDS_CA_BUNDLE
-  ? Buffer.from(process.env.RDS_CA_BUNDLE, "base64").toString("utf8")
-  : undefined;
+// const caCert = process.env.RDS_CA_BUNDLE
+//   ? Buffer.from(process.env.RDS_CA_BUNDLE, "base64").toString("utf8")
+//   : undefined;
 
 const pool =
   global._pgPool ||
@@ -17,10 +17,11 @@ const pool =
     database: process.env.PGDATABASE,
     user: process.env.PGUSER,
     password: process.env.PGPASSWORD,
-    ssl: {
-      ca: caCert,
-      rejectUnauthorized: true,
-    },
+    // ssl: {
+    //   ca: caCert,
+    //   rejectUnauthorized: true,
+    // },
+    ssl: false,
     max: 5,
     idleTimeoutMillis: 10000,
     connectionTimeoutMillis: 10000,

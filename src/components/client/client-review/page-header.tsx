@@ -13,11 +13,11 @@ export function PageHeader({ freelancerName, freelancerAvatar }: PageHeaderProps
           <div className="flex items-center space-x-4">
             <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg p-2">
               <div className="w-8 h-8 bg-white rounded flex items-center justify-center">
-                <span className="text-purple-600 font-bold text-sm">FP</span>
+                <span className="text-purple-600 font-bold text-sm">WS</span>
               </div>
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">FreelancePortal</h1>
+              <h1 className="text-xl font-bold text-gray-900">workspan</h1>
               <p className="text-gray-600 text-sm">Project Review Dashboard</p>
             </div>
           </div>

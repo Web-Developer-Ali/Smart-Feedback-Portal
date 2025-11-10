@@ -7,12 +7,9 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HelpCircle, MessageSquare } from "lucide-react";
+import { toast } from "sonner";
 
-interface HelpSectionProps {
-  projectId: string;
-}
-
-export function HelpSection({ projectId }: HelpSectionProps) {
+export function HelpSection() {
   return (
     <Card>
       <CardHeader>
@@ -29,10 +26,10 @@ export function HelpSection({ projectId }: HelpSectionProps) {
           or contact support.
         </p>
         <Button variant="outline" className="w-full bg-transparent" asChild>
-          <a href={`/client/messages/${projectId}`}>
+          <Button onClick={()=>  toast.error("This Feature is Coming soon")}>
             <MessageSquare className="h-4 w-4 mr-2" />
             Contact Freelancer
-          </a>
+          </Button>
         </Button>
       </CardContent>
     </Card>
