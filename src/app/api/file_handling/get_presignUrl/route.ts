@@ -79,11 +79,7 @@ function sanitizeFilename(filename: string): string {
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
-    }
-
-    const userId = session.user.id;
+    const userId = session?.user.id;
     const body = await req.json();
     const parsed = presignedUrlSchema.safeParse(body);
 
@@ -133,10 +129,10 @@ export async function POST(req: Request) {
         Bucket: process.env.AWS_S3_BUCKET!,
         Key: key,
         ContentType: type,
-        ContentLength: size,
+        ContentLength: size ?? 0,
         Metadata: {
-          "uploaded-by": userId,
-          "original-filename": filename,
+          "uploaded-by": userId ?? "",
+          "original-filename": filename ?? "",
           "upload-timestamp": timestamp.toString(),
           "milestone-id": milestoneId || "",
         },
