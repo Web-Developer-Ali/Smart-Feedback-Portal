@@ -25,10 +25,8 @@ import {
   Briefcase,
   MessageSquare,
   BarChart3,
-  Settings,
   ChevronUp,
   LogOut,
-  User,
   Sparkles,
 } from "lucide-react";
 import { useUser } from "../user-provider";
@@ -147,14 +145,14 @@ export function DashboardSidebar() {
                   side="top"
                   className="w-(--radix-popper-anchor-width) bg-white/95 backdrop-blur-sm shadow-xl border-0"
                 >
-                  <DropdownMenuItem className="hover:bg-blue-50">
+                  {/* <DropdownMenuItem className="hover:bg-blue-50">
                     <User className="h-4 w-4 mr-2 text-blue-500" />
                     <span>Profile</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem className="hover:bg-purple-50">
                     <Settings className="h-4 w-4 mr-2 text-purple-500" />
                     <span>Settings</span>
-                  </DropdownMenuItem>
+                  </DropdownMenuItem> */}
                   <DropdownMenuItem
                     onClick={handleSignOut}
                     className="hover:bg-red-50 text-red-600"

@@ -21,12 +21,75 @@ import { DashboardStats } from "@/components/dashboard/user-stats/dashboard-stat
 import { DashboardContent } from "@/components/dashboard/user-stats/dashboard-content";
 import { UserStats } from "@/types/user-stats";
 import { useUser } from "@/components/user-provider";
+import { useSearchParams } from "next/navigation";
+import { toast } from "sonner"; // Make sure to import toast
 
 export function DashboardClient() {
   const { user } = useUser();
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+
+  // ✅ Client portal restriction logic
+  useEffect(() => {
+    const message = searchParams.get("message");
+    const originalUrl = searchParams.get("originalUrl");
+    
+    if (message === "client_access_restricted") {
+      toast.error(
+        <div className="space-y-2">
+          <p className="font-semibold">Client Portal Access Restricted</p>
+          <p className="text-sm">
+            You cannot access client portal pages while logged into your agency account.
+          </p>
+          <div className="text-xs text-gray-600 space-y-1">
+            <p><strong>To view client portals:</strong></p>
+            <p>• Use a different browser</p>
+            <p>• Open an incognito/private window</p>
+            <p>• Log out and access the link directly</p>
+          </div>
+          {originalUrl && (
+            <div className="flex gap-2 mt-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  window.open(originalUrl, '_blank', 'noopener,noreferrer');
+                  toast.dismiss();
+                }}
+                className="text-xs h-7"
+              >
+                Open in New Tab
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  navigator.clipboard.writeText(originalUrl);
+                  toast.success("Client link copied to clipboard!");
+                  toast.dismiss();
+                }}
+                className="text-xs h-7"
+              >
+                Copy Link
+              </Button>
+            </div>
+          )}
+        </div>,
+        {
+          duration: 15000,
+          position: "top-center",
+        }
+      );
+
+      // Clean up the URL without page reload
+      const url = new URL(window.location.href);
+      url.searchParams.delete("message");
+      url.searchParams.delete("originalUrl");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [searchParams]);
 
   // ✅ memoize API call
   const fetchUserStats = useCallback(async () => {
@@ -129,7 +192,7 @@ export function DashboardClient() {
                         Welcome back, {user?.name?.split(" ")[0] || "there"} 👋
                       </h1>
                       <p className="text-indigo-100 text-base sm:text-lg">
-                        Here’s what’s happening with your projects today
+                          Here&apos;s what&apos;s happening with your projects today
                       </p>
                     </div>
                     <Button

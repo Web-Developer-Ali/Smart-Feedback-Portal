@@ -36,7 +36,8 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { Project } from "@/types/api-projectDetails";
-
+import { useUser } from "../user-provider";
+import axios from "axios";
 interface ProjectHeaderProps {
   project: Project;
   onRetry: () => void;
@@ -54,14 +55,13 @@ export default function ProjectHeader({
   const [isDeleting, setIsDeleting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
-
+  const { user } = useUser();
   const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXTAUTH_URL ||
     (typeof window !== "undefined"
       ? window.location.origin
-      : "https://yoursite.com");
-  const feedbackToken = project.jwt_token || `fallback-${project.id}`;
-  const feedbackLink = `${siteUrl}/feedback/${feedbackToken}&id:${project.id}`;
+      : "https://www.workspan.io");
+  const feedbackLink = `${siteUrl}/client/client-review/${project.id}`;
 
   const getProjectStatusColor = (status: string) => {
     switch (status) {
@@ -104,38 +104,22 @@ export default function ProjectHeader({
   const handleSendEmail = async () => {
     setSendingEmail(true);
     try {
-      if (!project.client_email || project.client_email === "N/A") {
-        throw new Error("Client email is not available");
-      }
-
-      const response = await fetch("/api/project/send-feedback-email", {
-        method: "POST",
+      await axios.post('/api/project/send_projectLink_viaEmail', {
+        email: project.client_email,
+        senderName: user?.name || "WorkSpan",
+        projectName: project.name,
+        projectDescription: project.description || "No description provided",
+        portalLink: feedbackLink
+      }, {
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          projectId: project.id,
-          clientEmail: project.client_email,
-          clientName: project.client_name,
-          projectName: project.name,
-          feedbackLink: feedbackLink,
-        }),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || "Failed to send email");
-      }
-
-      toast.success(`Feedback link sent to ${project.client_email}`);
+      toast.success(`Project portal access sent to ${project.client_email}`);
       setShareDialogOpen(false);
     } catch (error) {
-      console.error("Error sending email:", error);
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Failed to send email. Please try again.";
-      toast.error(errorMessage);
+      console.error("Failed to send portal access email:", error);
+      toast.error("Failed to send portal access email");
     } finally {
       setSendingEmail(false);
     }

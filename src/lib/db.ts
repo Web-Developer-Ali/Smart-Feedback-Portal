@@ -17,7 +17,7 @@ const pool =
     database: process.env.PGDATABASE,
     user: process.env.PGUSER,
     password: process.env.PGPASSWORD,
-    ssl: {
+     ssl: {
       ca: caCert,
       rejectUnauthorized: true,
     },

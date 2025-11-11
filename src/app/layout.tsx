@@ -26,20 +26,20 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL || "https://smartfeedbackportal.com"
+    process.env.NEXTAUTH_URL || "https://www.workspan.io"
   ),
   title: {
     default:
-      "Smart Feedback Portal - Professional Project Management & Client Collaboration Platform",
-    template: "%s | Smart Feedback Portal",
+      "WorkSpan - Professional Project Management & Client Collaboration Platform",
+    template: "%s | WorkSpan",
   },
   description:
     "Transform your project delivery with Smart Feedback Portal. Track milestones, collect client feedback, manage revisions, and streamline collaboration. Trusted by 10,000+ agencies worldwide. Start your free trial today!",
-  applicationName: "Smart Feedback Portal",
+  applicationName: "WorkSpan",
   authors: [
     {
-      name: "Smart Feedback Portal Team",
-      url: "https://smartfeedbackportal.com",
+      name: "WorkSpan Team",
+      url: "https://www.workspan.io",
     },
   ],
   generator: "Next.js",
@@ -86,8 +86,8 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: "/",
-    siteName: "Smart Feedback Portal",
-    title: "Smart Feedback Portal - Professional Project Management Platform",
+    siteName: "WorkSpan",
+    title: "WorkSpan - Professional Project Management Platform",
     description:
       "Transform your project delivery with intelligent milestone tracking, seamless client feedback, and real-time collaboration. Join 10,000+ successful agencies.",
     images: [
@@ -101,9 +101,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "@SmartFeedbackPortal",
-    creator: "@SmartFeedbackPortal",
-    title: "Smart Feedback Portal - Professional Project Management Platform",
+    site: "@WorkSpan",
+    creator: "@WorkSpan",
+    title: "WorkSpan - Professional Project Management Platform",
     description:
       "Transform your project delivery with intelligent milestone tracking and seamless client feedback. Trusted by 10,000+ agencies worldwide.",
     images: ["/twitter-image.jpg"],

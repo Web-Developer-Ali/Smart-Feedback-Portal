@@ -18,10 +18,10 @@ const publicPaths = new Set([
   "/auth/callback",
 ]);
 
-// Client-specific pages
+// Client-specific pages that should only be accessed by unauthenticated users
 const clientPages = new Set([
   "/client/client-communication",
-  "/client/client-review", // dynamic routes handled below
+  "/client/client-review",
   "/client/feedback",
   "/client/messages",
 ]);
@@ -39,10 +39,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check if the path is public
-  const isPublicPath =
-    publicPaths.has(pathname) ||
-    Array.from(clientPages).some((p) => pathname.startsWith(p));
+  // Check if the path is a client page
+  const isClientPage = Array.from(clientPages).some((p) => pathname.startsWith(p)) || 
+                      pathname.startsWith("/client/client-review/");
 
   // Get NextAuth token
   let token = null;
@@ -50,14 +49,31 @@ export async function middleware(request: NextRequest) {
     token = await getToken({
       req: request,
       secret: process.env.NEXTAUTH_SECRET,
-      secureCookie: process.env.NODE_ENV === "production", // true in prod
+      secureCookie: process.env.NODE_ENV === "production",
     });
   } catch (error) {
     console.error("Token retrieval error:", error);
   }
 
-  // Unauthenticated users trying to access protected pages
-  if (!token && !isPublicPath && !pathname.startsWith("/api/")) {
+  // Check if the path is public (excluding client pages)
+  const isPublicPath = publicPaths.has(pathname) && !isClientPage;
+
+  // 🔒 RESTRICTION: Authenticated users trying to access client pages
+  if (token && isClientPage) {
+    const response = NextResponse.redirect(new URL("/dashboard", request.url));
+    
+    // Add a header to show a message on the dashboard
+    response.headers.set("x-auth-redirect", "client-page-restricted");
+    
+    // You can also set a cookie to show a toast message
+    const redirectUrl = new URL("/dashboard", request.url);
+    redirectUrl.searchParams.set("message", "client_access_restricted");
+    
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  // Unauthenticated users trying to access protected pages (excluding client pages)
+  if (!token && !isPublicPath && !pathname.startsWith("/api/") && !isClientPage) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
