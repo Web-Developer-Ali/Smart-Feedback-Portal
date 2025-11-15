@@ -8,6 +8,8 @@ const publicPaths = new Set([
   "/login",
   "/about",
   "/contact",
+  "/privacy",
+  "/terms",
   "/help",
   "/docs",
   "/blog",

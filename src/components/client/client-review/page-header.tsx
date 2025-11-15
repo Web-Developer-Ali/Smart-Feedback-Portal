@@ -1,5 +1,5 @@
 import Image from "next/image"
-
+import logo from "@/../../public/favicon.ico"
 interface PageHeaderProps {
   freelancerName: string
   freelancerAvatar: string
@@ -11,13 +11,17 @@ export function PageHeader({ freelancerName, freelancerAvatar }: PageHeaderProps
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg p-2">
-              <div className="w-8 h-8 bg-white rounded flex items-center justify-center">
-                <span className="text-purple-600 font-bold text-sm">WS</span>
-              </div>
+            <div className="from-purple-600 to-blue-600 rounded-lg p-2">
+            <Image 
+              src={logo} 
+              alt="WorkSpan Logo" 
+              width={40}
+              height={40}
+              className="text-white"
+            />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">workspan</h1>
+              <h1 className="text-xl font-bold text-gray-900">WorkSpan</h1>
               <p className="text-gray-600 text-sm">Project Review Dashboard</p>
             </div>
           </div>

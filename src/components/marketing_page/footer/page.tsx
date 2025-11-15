@@ -58,12 +58,6 @@ function footer() {
                 </a>
               </li>
               <li>
-                <a
-                  href="/blog"
-                  className="hover:text-blue-600 transition-colors duration-300"
-                >
-                  Blog
-                </a>
               </li>
               <li>
                 <a

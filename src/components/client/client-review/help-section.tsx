@@ -25,7 +25,7 @@ export function HelpSection() {
           deliverables, or project progress, please reach out to the freelancer
           or contact support.
         </p>
-        <Button variant="outline" className="w-full bg-transparent" asChild>
+        <Button variant="outline" className="w-full bg-transparent text-black" asChild>
           <Button onClick={()=>  toast.error("This Feature is Coming soon")}>
             <MessageSquare className="h-4 w-4 mr-2" />
             Contact Freelancer

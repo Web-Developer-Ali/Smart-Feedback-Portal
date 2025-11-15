@@ -3,8 +3,9 @@
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import React, { useState } from "react";
-
+import logo from "@/../../public/favicon.ico"
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -21,7 +22,13 @@ export default function Navbar() {
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 group">
           <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center transform group-hover:scale-110 transition-transform duration-300">
-            <span className="text-white font-bold text-sm">WS</span>
+            <Image 
+              src={logo} 
+              alt="WorkSpan Logo" 
+              width={40}
+              height={40}
+              className="text-white"
+            />
           </div>
           <span className="font-bold text-lg text-foreground">WorkSpan</span>
         </Link>

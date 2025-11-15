@@ -27,13 +27,13 @@ import {
   BarChart3,
   ChevronUp,
   LogOut,
-  Sparkles,
 } from "lucide-react";
 import { useUser } from "../user-provider";
 import { signOut } from "next-auth/react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-
+import Image from "next/image";
+import logo from "@/../../public/favicon.ico"
 export function DashboardSidebar() {
   const { user, loading } = useUser();
   const router = useRouter();
@@ -61,12 +61,18 @@ export function DashboardSidebar() {
       {/* Header */}
       <SidebarHeader className="border-b border-slate-200/50">
         <div className="flex items-center gap-2 px-2 py-3">
-          <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg">
-            <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
+        <div className="w-8 h-8 mb-2 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center transform group-hover:scale-110 transition-transform duration-300">
+            <Image
+              src={logo} 
+              alt="WorkSpan Logo" 
+              width={60}
+              height={60}
+              className="text-white"
+            />
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-base sm:text-lg font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent truncate">
-              Feedback Portal
+                WorkSpan
             </span>
             <span className="text-xs text-slate-500 font-medium">
               Smart Reviews System

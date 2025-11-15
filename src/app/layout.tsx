@@ -25,16 +25,16 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  title: "WorkSpan",
+  icons: {
+    icon: ["/favicon.ico"],
+    apple:["apple-touch-icon.png?v=4"],
+    shortcut:["/apple-touch-icon.png"]
+  },
+  description: "Transform your project delivery with intelligent milestone tracking and seamless client feedback. Trusted by 10,000+ agencies worldwide.",
   metadataBase: new URL(
     process.env.NEXTAUTH_URL || "https://www.workspan.io"
   ),
-  title: {
-    default:
-      "WorkSpan - Professional Project Management & Client Collaboration Platform",
-    template: "%s | WorkSpan",
-  },
-  description:
-    "Transform your project delivery with Smart Feedback Portal. Track milestones, collect client feedback, manage revisions, and streamline collaboration. Trusted by 10,000+ agencies worldwide. Start your free trial today!",
   applicationName: "WorkSpan",
   authors: [
     {
