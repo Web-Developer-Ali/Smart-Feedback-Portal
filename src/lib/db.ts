@@ -21,6 +21,7 @@ const pool =
       ca: caCert,
       rejectUnauthorized: true,
     },
+    // ssl: false,
     max: 5,
     idleTimeoutMillis: 10000,
     connectionTimeoutMillis: 10000,
