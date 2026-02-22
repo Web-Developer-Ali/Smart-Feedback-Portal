@@ -67,7 +67,7 @@ declare global {
 }
 
 // Use connection string from environment variable
-const connectionString = process.env.POSTGRES_PRISMA_URL;
+const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
   console.error("❌ DATABASE_URL environment variable is not set");
